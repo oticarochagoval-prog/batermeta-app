@@ -311,20 +311,6 @@ export default function Login({ onLogin }) {
                 </>
               )}
             </button>
-
-            <div
-              style={{
-                fontSize: 11,
-                color: SLATE,
-                textAlign: "center",
-                marginTop: 16,
-                lineHeight: 1.7,
-              }}
-            >
-              Loja <b>rocha1</b> · semanal <b>rocha9</b> (senha = usuário)
-              <br />
-              Master <b>master / rocha@master2024</b>
-            </div>
           </>
         ) : (
           <>
