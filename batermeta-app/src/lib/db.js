@@ -175,3 +175,184 @@ export async function listarAbordadores(lojaId, mes, ano) {
   if (error) throw error;
   return (data || []).map(mapAbord);
 }
+
+/* ============================================================
+   FUNÇÕES DE ESCRITA (Etapa 2 — Lançar)
+   ============================================================ */
+
+import { fmtBRL } from "./format.js";
+
+/* --- LANCAMENTOS (Contratado / Faturado) ---
+   Um por (loja, periodo, categoria). Se já existir, substitui e
+   registra log. */
+export async function upsertVenda({
+  lojaId,
+  periodo,
+  categoria,
+  valor,
+  qtdVendas,
+  obs,
+  naoTeve,
+  quem = "loja", // 'loja' | 'master'
+}) {
+  // Procura existente
+  const { data: existentes, error: e1 } = await supabase
+    .from("lancamentos")
+    .select("*")
+    .eq("loja_id", lojaId)
+    .eq("periodo", periodo)
+    .eq("categoria", categoria);
+  if (e1) throw e1;
+  const existente = (existentes || [])[0];
+
+  const payload = {
+    loja_id: lojaId,
+    periodo,
+    categoria,
+    valor: naoTeve ? 0 : valor,
+    qtd_vendas: naoTeve ? 0 : qtdVendas,
+    obs: naoTeve ? "" : obs || "",
+    nao_teve: !!naoTeve,
+  };
+
+  if (existente) {
+    const { error: e2 } = await supabase
+      .from("lancamentos")
+      .update(payload)
+      .eq("id", existente.id);
+    if (e2) throw e2;
+    await registrarLog({
+      lojaId,
+      tipo: categoria,
+      periodo,
+      de: existente.nao_teve ? "não teve" : fmtBRL(Number(existente.valor)),
+      para: naoTeve ? "não teve" : fmtBRL(valor),
+      quem,
+    });
+  } else {
+    const { error: e3 } = await supabase.from("lancamentos").insert(payload);
+    if (e3) throw e3;
+  }
+}
+
+/* --- MIDIA EM LOTE ---
+   Substitui TODOS os registros da loja+periodo pelos itens informados.
+   "Não teve" cria um único registro com nao_teve=true. */
+export async function setMidiaLote(lojaId, periodo, itens) {
+  // Apaga tudo da loja+periodo
+  const { error: eDel } = await supabase
+    .from("midias")
+    .delete()
+    .eq("loja_id", lojaId)
+    .eq("periodo", periodo);
+  if (eDel) throw eDel;
+
+  if (!itens || itens.length === 0) return;
+
+  const payload = itens.map((it) => ({
+    loja_id: lojaId,
+    periodo,
+    origem_id: it.origemId,
+    quantidade: it.quantidade,
+    valor: it.valor,
+    nao_teve: false,
+  }));
+
+  const { error: eIns } = await supabase.from("midias").insert(payload);
+  if (eIns) throw eIns;
+}
+
+export async function naoTeveMidia(lojaId, periodo) {
+  const { error: eDel } = await supabase
+    .from("midias")
+    .delete()
+    .eq("loja_id", lojaId)
+    .eq("periodo", periodo);
+  if (eDel) throw eDel;
+  const { error: eIns } = await supabase.from("midias").insert({
+    loja_id: lojaId,
+    periodo,
+    origem_id: null,
+    quantidade: 0,
+    valor: 0,
+    nao_teve: true,
+  });
+  if (eIns) throw eIns;
+}
+
+/* --- ORCAMENTOS (lista de clientes) --- */
+export async function addClienteOrcamento({ lojaId, nome, dataChegou }) {
+  const { error } = await supabase.from("orcamentos").insert({
+    loja_id: lojaId,
+    nome,
+    data_chegou: dataChegou,
+    data_comprou: null,
+  });
+  if (error) throw error;
+}
+
+export async function toggleClienteOrcamento(id, dataComprou) {
+  const { error } = await supabase
+    .from("orcamentos")
+    .update({ data_comprou: dataComprou })
+    .eq("id", id);
+  if (error) throw error;
+}
+
+export async function removeClienteOrcamento(id) {
+  const { error } = await supabase.from("orcamentos").delete().eq("id", id);
+  if (error) throw error;
+}
+
+/* --- ABORDADORES (lista de clientes com flag promocao) --- */
+export async function addClienteAbord({ lojaId, nome, dataChegou, promocao }) {
+  const { error } = await supabase.from("abordadores").insert({
+    loja_id: lojaId,
+    nome,
+    data_chegou: dataChegou,
+    data_comprou: null,
+    promocao: !!promocao,
+  });
+  if (error) throw error;
+}
+
+export async function toggleClienteAbord(id, dataComprou) {
+  const { error } = await supabase
+    .from("abordadores")
+    .update({ data_comprou: dataComprou })
+    .eq("id", id);
+  if (error) throw error;
+}
+
+export async function togglePromocaoAbord(id, novoValor) {
+  const { error } = await supabase
+    .from("abordadores")
+    .update({ promocao: !!novoValor })
+    .eq("id", id);
+  if (error) throw error;
+}
+
+export async function removeClienteAbord(id) {
+  const { error } = await supabase.from("abordadores").delete().eq("id", id);
+  if (error) throw error;
+}
+
+/* --- EDIT_LOG --- */
+async function registrarLog({ lojaId, tipo, periodo, de, para, quem }) {
+  // Tabela edit_log: id, loja_id, tipo, periodo, de, para, quem, quando
+  // Se schema diferente, ajustar aqui. Falha silenciosa para não bloquear
+  // o save principal — log é "best effort".
+  try {
+    await supabase.from("edit_log").insert({
+      loja_id: lojaId,
+      tipo,
+      periodo,
+      de,
+      para,
+      quem,
+    });
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.warn("[edit_log] falha ao registrar (ignorando):", e);
+  }
+}
