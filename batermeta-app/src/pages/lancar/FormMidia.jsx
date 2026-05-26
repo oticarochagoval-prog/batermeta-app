@@ -7,11 +7,12 @@
 // Contratado do mesmo dia (alerta se faltou/sobrou).
 
 import React, { useEffect, useState } from "react";
-import { Ban, Check, Settings } from "lucide-react";
+import { Ban, Check, Lock, Settings } from "lucide-react";
 import { CAT_COR, COLORS } from "../../lib/colors.js";
 import { fmtBRL } from "../../lib/format.js";
 import { CONFIG } from "../../lib/config.js";
 import { setMidiaLote, naoTeveMidia } from "../../lib/db.js";
+import { podeEditar } from "../../lib/janela_edicao.js";
 import { btn } from "../../ui/Field.jsx";
 import MoneyInput from "../../ui/MoneyInput.jsx";
 import PeriodoSeletor from "../../ui/PeriodoSeletor.jsx";
@@ -22,6 +23,7 @@ export default function FormMidia({
   midias,
   lancamentos,
   permitirFuturo,
+  viaMaster,
   onSaved,
   onIrConfig,
 }) {
@@ -60,7 +62,14 @@ export default function FormMidia({
   const setLinha = (oid, campo, v) =>
     setMLinhas((p) => ({ ...p, [oid]: { ...p[oid], [campo]: v } }));
 
+  const gate = podeEditar(mPeriodo, viaMaster);
+  const bloqueado = !gate.permitido;
+
   const salvar = async () => {
+    if (bloqueado) {
+      setErro(gate.motivo);
+      return;
+    }
     setErro("");
     setSalvando(true);
     try {
@@ -85,6 +94,10 @@ export default function FormMidia({
   };
 
   const naoTeve = async () => {
+    if (bloqueado) {
+      setErro(gate.motivo);
+      return;
+    }
     setErro("");
     setSalvando(true);
     try {
@@ -175,6 +188,28 @@ export default function FormMidia({
           onChange={setMPeriodo}
           permitirFuturo={permitirFuturo}
         />
+
+        {bloqueado && (
+          <div
+            style={{
+              background: "#FEF2F2",
+              border: "1px solid #FCA5A5",
+              borderRadius: 10,
+              padding: "10px 12px",
+              fontSize: 12,
+              color: COLORS.error,
+              display: "flex",
+              alignItems: "flex-start",
+              gap: 6,
+              lineHeight: 1.4,
+            }}
+          >
+            <Lock size={13} style={{ marginTop: 1, flexShrink: 0 }} />
+            <span>
+              <b>Mês fechado.</b> {gate.motivo}
+            </span>
+          </div>
+        )}
 
         {/* TOTALIZADOR */}
         <div
@@ -449,12 +484,12 @@ export default function FormMidia({
         <div className="flex gap-2">
           <button
             onClick={salvar}
-            disabled={salvando}
+            disabled={salvando || bloqueado}
             style={{
               ...btn(ok === "salvo" ? COLORS.success : cor),
               flex: 2,
-              opacity: salvando ? 0.6 : 1,
-              cursor: salvando ? "default" : "pointer",
+              opacity: salvando || bloqueado ? 0.6 : 1,
+              cursor: salvando || bloqueado ? "default" : "pointer",
             }}
           >
             {salvando ? (
@@ -463,13 +498,17 @@ export default function FormMidia({
               <>
                 <Check size={16} /> Salvo!
               </>
+            ) : bloqueado ? (
+              <>
+                <Lock size={14} /> Mês fechado
+              </>
             ) : (
               "Salvar Mídia"
             )}
           </button>
           <button
             onClick={naoTeve}
-            disabled={salvando}
+            disabled={salvando || bloqueado}
             style={{
               flex: 1,
               border: `1.5px solid ${
@@ -480,12 +519,12 @@ export default function FormMidia({
               borderRadius: 10,
               fontWeight: 700,
               fontSize: 12.5,
-              cursor: salvando ? "default" : "pointer",
+              cursor: salvando || bloqueado ? "default" : "pointer",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
               gap: 5,
-              opacity: salvando ? 0.6 : 1,
+              opacity: salvando || bloqueado ? 0.5 : 1,
             }}
           >
             {ok === "naoteve" ? (

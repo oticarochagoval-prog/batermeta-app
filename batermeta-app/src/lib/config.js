@@ -46,6 +46,26 @@ function buildConfig() {
 
 export const CONFIG = buildConfig();
 
+/**
+ * Hidrata o CONFIG com valores vindos da tabela master_config.
+ * Mutates `CONFIG` in place — chame uma vez no boot (App.jsx) antes
+ * de pintar a UI. Se a tabela não estiver disponível, mantém defaults.
+ */
+export async function hidratarConfigDoServidor(listarMasterConfig) {
+  try {
+    const cfg = await listarMasterConfig();
+    if (cfg.janela_edicao_dias != null) {
+      const n = parseInt(String(cfg.janela_edicao_dias), 10);
+      if (Number.isFinite(n) && n >= 0) CONFIG.janelaEdicaoDias = n;
+    }
+    if (cfg.nome_rede) CONFIG.nomeRede = String(cfg.nome_rede);
+    if (cfg.senha_master) CONFIG.senhaMaster = String(cfg.senha_master);
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.warn("[config] hidrate falhou, usando defaults:", e.message);
+  }
+}
+
 // Dias do mês corrente, úteis + sábados (p/ lançar). Domingo fica de fora.
 // Espelha a constante DIAS_MES do protótipo (linhas 84-91), mas dinâmica.
 export const DIAS_MES = (() => {

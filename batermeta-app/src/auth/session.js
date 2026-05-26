@@ -1,25 +1,31 @@
 // Autenticação local — não usa Supabase Auth.
 // O briefing diz: "Sem RLS — o sistema controla login no app".
 //
-// Credencial master vem hard-coded conforme briefing.
-// Credencial loja vem da tabela `lojas` (campos `login` e `senha`).
+// A senha master pode ser trocada pelo Config Master (Etapa 3).
+// O valor é lido de CONFIG.senhaMaster (hidratado de master_config no boot)
+// com fallback pro hard-coded original do briefing.
 //
 // "Lembrar acesso" persiste a sessão em localStorage. Sem lembrar,
 // recarregar o navegador volta pra tela de login.
 
 import { listarLojas } from "../lib/db.js";
+import { CONFIG } from "../lib/config.js";
 
 const STORAGE_KEY = "batermeta:session";
 
 const MASTER_USER = "master";
-const MASTER_PASS = "rocha@master2024";
+const MASTER_PASS_FALLBACK = "rocha@master2024";
 
 export async function autenticar(usuario, senha) {
   const u = (usuario || "").toLowerCase().trim();
   const s = senha || "";
 
-  if (u === MASTER_USER && s === MASTER_PASS) {
-    return { ok: true, session: { type: "master" } };
+  if (u === MASTER_USER) {
+    const senhaCerta = CONFIG.senhaMaster || MASTER_PASS_FALLBACK;
+    if (s === senhaCerta) {
+      return { ok: true, session: { type: "master" } };
+    }
+    return { ok: false, motivo: "credencial" };
   }
 
   // Loja: busca pela tabela.

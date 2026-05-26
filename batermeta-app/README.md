@@ -3,10 +3,10 @@
 Sistema de acompanhamento de metas das óticas (Rocha 1-11 + GV Optical).
 Frontend React + Vite. Backend Supabase. Hospedado no Vercel.
 
-> Este é o resultado da **Etapa 2**: tela de Lançar funcionando
-> (Contratado, Faturado, Mídia, Orçamento, Abordador) + modal de
-> WhatsApp + CRUD real no Supabase. As telas de Relatórios, Config e
-> Painel Master entram na Etapa 3.
+> Este é o resultado da **Etapa 3** (final). Sistema completo: gerente
+> tem todas as 4 abas funcionando (Início, Lançar, Relatórios, Config),
+> master tem painel consolidado, ranking de mídia, relatórios da rede e
+> CRUD completo (lojas, janela de edição, senha master, nome da rede).
 
 ---
 
@@ -23,119 +23,163 @@ Acesse http://localhost:5173
 
 ---
 
-## 2. Migrações novas da Etapa 2 (SQL Editor do Supabase)
+## 2. Migração nova da Etapa 3 (SQL Editor do Supabase)
 
-Rode na ordem, **só as 005 e 006** (as 001-004 já foram rodadas na Etapa 1).
+Rode **apenas a 007** (as 001-006 já foram aplicadas nas etapas anteriores).
 
 | Arquivo | O que faz |
 |---|---|
-| `supabase/migrations/005_seed_origens.sql` | Cadastra 6 origens padrão (Abordador, Cliente, Indicação, Passando, Google, Instagram) pras 12 lojas |
-| `supabase/migrations/006_edit_log_schema.sql` | Garante colunas no `edit_log` (tipo, periodo, de, para, quem, quando) |
+| `supabase/migrations/007_master_config.sql` | Cria a tabela `master_config` (chave/valor) com defaults: `janela_edicao_dias=5` e `nome_rede=Óticas Rocha`. Sem a senha master cadastrada (usa fallback do briefing). |
 
-Todas idempotentes. Pode rodar de novo sem medo.
+Idempotente. Pode rodar de novo sem medo.
 
 ---
 
-## 3. Funcionalidades da Etapa 2
+## 3. Novidades da Etapa 3
 
-### Tela Lançar (aba "+" na barra inferior)
+### Para o gerente (loja)
 
-5 sub-abas no topo:
+#### Tela "Relatórios" (antes "Em breve")
+- **Vendas:** cards Contratado/Faturado clicáveis (filtram a lista). 1 selecionado mostra lista única ampliada. Cada lista tem resumo com Meta/Super/Gold (saldo + %) no topo.
+- **Orçamentos:** stats do mês (atendimentos, compraram, pendentes, conversão) + lista completa.
+- **Mídia:** card destaque com total da rede + lista de origens com barras proporcionais ao valor.
+- **Abordador:** card de meta de clientes (paraMeta = total - promoção) + stats detalhados + lista com flag PROMOÇÃO.
 
-1. **Contratado** — total do dia, MoneyInput estilo máquina, nº de vendas (calcula ticket médio ao vivo), observação, "Não teve". Substitui se já existir e registra no `edit_log`.
-2. **Faturado** — idêntico ao Contratado, mas pra faturamento.
-3. **Mídia** — lista única com todas as origens ativas da loja. Preenche tudo e salva de uma vez. Totalizador inteligente comparando com Contratado do mesmo dia (alerta se faltou ou sobrou).
-4. **Orçamento** — lista mensal de clientes que pediram orçamento. Filtros: hoje/semana/mês/só pendentes. Marcar comprou tocando na bolinha.
-5. **Abordador** — lista mensal de clientes trazidos pelo abordador. Flag PROMOÇÃO existe APENAS aqui (não em Mídia, não em Orçamento). Header mostra meta de clientes do mês. **Aba some completamente se `meta_abordador = 0`.**
+#### Tela "Config" (antes "Em breve")
+3 sub-abas:
+- **Metas:** editar tipo de período (diário/semanal), divisor (dias úteis ou semanas), Meta/Super/Gold de Contratado e Faturado, meta do Abordador. Validação Super > Meta, Gold > Super.
+- **Origens:** lista de origens ativas (Arquivar) + lista arquivadas (Reativar). Adicionar novas. Arquivar NÃO apaga — histórico preservado.
+- **Senha:** o gerente troca a própria senha confirmando a atual.
 
-### Modal de WhatsApp
+#### Bloqueio efetivo da janela de edição
+Antes era só informativo. Agora é regra real:
+- Mês atual: sempre editável.
+- Mês fechado: gerente edita até X dias após a virada (configurável pelo master, default 5).
+- Master: **ignora janela**, edita qualquer dia de qualquer mês.
 
-Botão verde no Dashboard ("Enviar Relatório via WhatsApp") abre modal que:
-- Permite escolher qual dia (calendário) ou qual semana (S1-S4)
-- Monta a mensagem formatada (Contratado, Faturado, Mídia, Orçamento)
-- Botão "Copiar relatório" pro clipboard
-- Link "Abrir WhatsApp direto" (wa.me)
+Quando bloqueado, aparece banner vermelho com cadeado e os botões "Lançar"/"Não teve" ficam desabilitados.
 
-### Janela de edição
+### Para o master (visão da rede)
 
-- **Gerente da loja:** mês atual é livre. Mês recém-fechado pode ser ajustado até **5 dias** após a virada (configurável depois pelo master). Depois, só o master corrige.
-- **Master:** ignora a janela. Edita qualquer dia de qualquer mês. Toda alteração fica em `edit_log` com `quem='master'`.
+Login `master` agora abre um painel completo com 4 abas:
 
-> A interface mostra um banner no topo da tela Lançar explicando a regra.
-> Hoje em dia o gate é informativo — qualquer um pode salvar; bloqueio
-> efetivo entra na Etapa 3 junto com Config Master.
+#### Painel
+- Card consolidado escuro: Faturamento mês, Ticket geral, Total do dia, Qtd. vendas.
+- Alerta: lojas com lançamento incompleto hoje.
+- Faturamento por loja (barras + ordenação Loja/Faturamento/% Meta).
+- Lista de cards clicáveis — toca para abrir aquela loja.
+
+#### Ranking
+Top 3 destaque + ranking completo (Top 10/20/Todos). **Agrega origens por nome:** Instagram da Rocha 1 + Instagram da Rocha 2 = um item só. Ordenação por valor, clientes ou ticket médio.
+
+#### Relatórios
+3 sub-abas: Vendas (resumo da rede), Mídia (origens consolidadas), Comparativo (linha por loja com ordenação). Botão "Copiar relatório" gera texto formatado pronto pro WhatsApp.
+
+#### Config
+- **Lojas:** CRUD completo. Renomear, redefinir senha, ativar/desativar, editar meta_abordador inline, criar loja nova.
+- **Janela:** define quantos dias o gerente edita após virar o mês (3, 5, 10, 30).
+- **Conta:** trocar nome da rede + alterar senha do master.
+
+#### Master ver como loja
+Ao tocar numa loja no Painel, o master entra na visão dela em modo de **edição livre**. Pode:
+- Ver o **Painel** (Dashboard) daquela loja
+- **Lançar** por ela (banner azul "Você está lançando por X com a senha master")
+- Ver **Relatórios** dela
+- **Gerar nova senha** (botão `rocha + 4 dígitos` aleatórios)
+
+Tem um seletor no topo pra trocar de loja sem voltar.
 
 ---
 
 ## 4. Credenciais
 
-Iguais à Etapa 1.
-
-- **Loja:** `rocha1` / `rocha1`, …, `gvoptical` / `gvoptical`
-- **Master:** `master` / `rocha@master2024`
+- **Loja:** mesmas das etapas anteriores (`rocha1`/`rocha1`, etc.)
+- **Master:** `master` / `rocha@master2024` (fallback). Quando você trocar a senha pela tela Config > Conta, a nova senha passa a valer.
 
 ---
 
-## 5. Publicar no GitHub e Vercel (via Claude Code)
-
-Quando o Claude Code subir essa nova versão:
-
-```
-sobe a Etapa 2 do BaterMeta. faz commit, push pra main, Vercel
-faz deploy automático.
-```
-
----
-
-## 6. Estrutura do código
+## 5. Estrutura do código (Etapa 3)
 
 ```
 src/
-├── App.jsx                      Root: sessão + roteamento
-├── main.jsx                     Bootstrap React
-├── index.css                    CSS global mínimo
+├── App.jsx                            Boot + hidrata CONFIG do banco
 ├── auth/
-│   ├── Login.jsx                Tela de login (limpa, sem dica de credenciais)
-│   └── session.js               autenticar() + localStorage
+│   ├── Login.jsx
+│   └── session.js                     Senha master vem do CONFIG (banco)
 ├── lib/
-│   ├── supabase.js              Cliente
-│   ├── colors.js                Paleta exata do protótipo
-│   ├── format.js                fmtBRL, parseISO, etc.
-│   ├── config.js                CONFIG: mês corrente, dias úteis, semana
-│   ├── calc.js                  calcMeta(), statusDia()
-│   ├── db.js                    Acesso ao Supabase (CRUD completo)
-│   ├── janela_edicao.js         Regra de janela de edição
-│   └── whats.js                 montaMsg() pra WhatsApp
-├── ui/
-│   ├── components.jsx           Card, Header, TabBar, BlocoMeta
-│   ├── Field.jsx                Field, inp, btn (compartilhados)
-│   ├── MoneyInput.jsx           Campo de dinheiro estilo máquina
-│   ├── Calendar.jsx             CalendarModal + DateField
-│   ├── PeriodoSeletor.jsx       Data (diário) ou S1-S4 (semanal)
-│   └── WhatsModal.jsx           Modal de envio de relatório
+│   ├── supabase.js, colors.js, format.js
+│   ├── config.js                      CONFIG + hidratarConfigDoServidor()
+│   ├── calc.js                        +calcMidia, +calcOrc, +calcAbord
+│   ├── db.js                          ~25 funções de READ/WRITE
+│   ├── janela_edicao.js               podeEditar() — bloqueio efetivo
+│   └── whats.js
+├── ui/                                Field, MoneyInput, Calendar,
+│                                      PeriodoSeletor, WhatsModal, components
 └── pages/
-    ├── Dashboard.jsx            Dashboard da loja (Etapa 1)
-    ├── LojaApp.jsx              Shell + roteamento das 4 abas
-    ├── MasterApp.jsx            Stub (Etapa 3)
-    ├── Lancar.jsx               Orquestra os 5 modos
-    └── lancar/
-        ├── FormVenda.jsx        Contratado / Faturado
-        ├── FormMidia.jsx        Mídia (lista única + totalizador)
-        ├── FormOrcamento.jsx    Orçamento (lista de clientes)
-        └── FormAbordador.jsx    Abordador (lista + promoção + meta)
+    ├── Dashboard.jsx                  (sem mudanças, etapa 1)
+    ├── LojaApp.jsx                    Shell loja, agora com tudo real
+    ├── MasterApp.jsx                  Shell master completo
+    ├── Lancar.jsx
+    ├── Relatorios.jsx                 NOVO — 4 sub-abas
+    ├── ConfigLoja.jsx                 NOVO — 3 sub-abas
+    ├── lancar/                        FormVenda (com bloqueio), FormMidia
+    │                                  (com bloqueio), FormOrcamento, FormAbordador
+    ├── relatorios/                    NOVO — RelVendas, RelOrcamentos,
+    │                                  RelMidia, RelAbordador
+    ├── config/                        NOVO — ConfigurarMetas, OrigensMidia,
+    │                                  TrocarSenha
+    └── master/                        NOVO — MasterHome, RankingMidia,
+                                       RelatoriosConsolidados, ConfigMaster,
+                                       CfgLojas, CfgJanela, CfgConta,
+                                       MasterLojaView
 ```
 
 ---
 
-## 7. O que ainda falta (Etapa 3)
+## 6. Subir nova versão (Claude Code + PowerShell)
 
-- **Relatórios** da loja: tabelas por categoria, ranking de origens, lista completa de orçamentos e abordadores do mês
-- **Visão Master** consolidada: KPIs por loja, comparativo entre lojas
-- **Ranking de Mídia** (master): qual origem traz mais clientes/valor por loja
-- **Config Loja:** editar metas, gerenciar origens (criar/arquivar/reativar), trocar senha da loja
-- **Config Master:**
-  - Lojas: criar/desativar/renomear, redefinir senha de loja, **redefinir senha do master** (mover de hard-coded pra `master_config`)
-  - Janela de edição: configurar `janelaEdicaoDias`
-  - Conta
-- **Histórico mensal real** (3 meses anteriores) para o comparativo "Mês atual x Melhor mês" no Dashboard
-- **Bloqueio efetivo** da janela de edição pra gerente da loja
+Mesmo padrão das etapas anteriores. Lembre-se:
+
+1. Extrai o ZIP em `Downloads`
+2. Abre PowerShell, vai para `C:\Users\Usuário\Downloads\batermeta-app`
+3. **Garante que está nessa pasta** com `pwd` antes de qualquer destrutivo (`git clean`, `Remove-Item`)
+4. Esvazia a subpasta `batermeta-app/` (estrutura existente do repo):
+   ```powershell
+   Get-ChildItem -Path ".\batermeta-app\" -Force | Remove-Item -Recurse -Force
+   ```
+5. Copia o conteúdo do ZIP novo pra dentro dela:
+   ```powershell
+   Copy-Item -Path "C:\Users\Usuário\Downloads\batermeta-app-etapa3\*" -Destination ".\batermeta-app\" -Recurse -Force
+   ```
+6. Commit + push:
+   ```powershell
+   git add .
+   git commit -m "Etapa 3 — Relatórios + Config + Master completo"
+   git push origin main
+   ```
+7. Roda a migração 007 no Supabase SQL Editor.
+8. Espera 2-3 min pro Vercel deployar. Acessa `batermeta-app.vercel.app`.
+
+---
+
+## 7. Testes recomendados
+
+### Como gerente
+1. Login `rocha1` / `rocha1`
+2. **Lançar:** Contratado + Faturado de hoje, R$ 1.500 cada
+3. **Mídia:** preencha uma origem com 2 clientes e R$ 1.500
+4. **Relatórios > Vendas:** clica nos cards Contratado/Faturado e vê a lista filtrar
+5. **Relatórios > Mídia:** vê a origem que você acabou de lançar com barra
+6. **Config > Metas:** muda a meta de Contratado pra R$ 100.000, salva
+7. **Config > Origens:** adiciona "Tiktok", arquiva, reativa
+8. **Config > Senha:** troca a senha por `nova123`, sai e entra de novo
+
+### Como master
+1. Login `master` / `rocha@master2024`
+2. **Painel:** vê o consolidado, alertas de loja incompleta, faturamento por loja
+3. Toca numa loja → entra na visão dela. Lança algo. Volta.
+4. **Ranking:** vê as origens consolidadas
+5. **Relatórios > Comparativo:** ordena por % Meta, copia relatório
+6. **Config > Lojas:** renomeia a Rocha 1, define meta_abordador 30, vê aparecer "ATIVO"
+7. **Config > Janela:** muda pra 10 dias e salva
+8. **Config > Conta:** troca a senha master por uma nova. Sai e entra com a nova.

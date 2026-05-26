@@ -124,6 +124,7 @@ export default function Lancar({
           midias={midias}
           lancamentos={lancamentos}
           permitirFuturo={viaMaster}
+          viaMaster={viaMaster}
           onSaved={onSaved}
           onIrConfig={onIrConfig}
         />

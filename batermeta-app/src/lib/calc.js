@@ -72,3 +72,64 @@ export function statusDia(loja, periodo, lancamentos, midias, orcamentos) {
 }
 
 export const barColor = (_pct) => COLORS.primary;
+
+/* ============================================================
+   ETAPA 3 — agregações para a tela Relatórios da loja
+   ============================================================ */
+
+// calcMidia — para a loja, lista cada origem com qtd, valor e ticket.
+// Resultado já ordenado por valor desc.
+export function calcMidia(loja, midias, origens) {
+  const ori = origens.filter((o) => o.lojaId === loja.id);
+  const ms = midias.filter((m) => m.lojaId === loja.id && !m.naoTeve);
+  return ori
+    .map((o) => {
+      const e = ms.filter((m) => m.origemId === o.id);
+      const qtd = e.reduce((s, m) => s + (m.quantidade || 0), 0);
+      const valor = e.reduce((s, m) => s + (m.valor || 0), 0);
+      return { ...o, qtd, valor, ticket: qtd > 0 ? valor / qtd : 0 };
+    })
+    .sort((a, b) => b.valor - a.valor);
+}
+
+// calcOrc — totais e lista ordenada de orçamentos do mês.
+export function calcOrc(loja, orcamentos) {
+  const list = orcamentos
+    .filter((o) => o.lojaId === loja.id)
+    .sort(
+      (a, b) =>
+        b.dataChegou.localeCompare(a.dataChegou) || b.id - a.id
+    );
+  const total = list.length;
+  const compraram = list.filter((o) => !!o.dataComprou).length;
+  const taxa = total > 0 ? (compraram / total) * 100 : 0;
+  return { list, total, compraram, pendentes: total - compraram, taxa };
+}
+
+// calcAbord — totais + meta de clientes (paraMeta = total - promoção).
+export function calcAbord(loja, abordadores) {
+  const list = abordadores
+    .filter((a) => a.lojaId === loja.id)
+    .sort(
+      (a, b) =>
+        b.dataChegou.localeCompare(a.dataChegou) || b.id - a.id
+    );
+  const total = list.length;
+  const compraram = list.filter((a) => !!a.dataComprou).length;
+  const promocao = list.filter((a) => !!a.promocao).length;
+  const paraMeta = total - promocao;
+  const meta = loja.metaAbordador || 0;
+  const taxa = total > 0 ? (compraram / total) * 100 : 0;
+  const pctMeta = meta > 0 ? Math.min(100, (paraMeta / meta) * 100) : 0;
+  return {
+    list,
+    total,
+    compraram,
+    pendentes: total - compraram,
+    promocao,
+    paraMeta,
+    meta,
+    taxa,
+    pctMeta,
+  };
+}

@@ -1,12 +1,14 @@
 // LojaApp — shell do gerente da loja.
-// Etapa 2: agora carrega TODOS os dados (incluindo origens e abordadores),
-// e a aba "Lançar" é a tela real. Refresh automático depois de salvar.
+// Etapa 3: agora todas as 4 abas (Início, Lançar, Relatórios, Config)
+// são telas reais. Refresh automático após salvar.
 
 import React, { useCallback, useEffect, useState } from "react";
 import { Home, Plus, BarChart3, Settings } from "lucide-react";
-import { Header, TabBar, EmBreve } from "../ui/components.jsx";
+import { Header, TabBar } from "../ui/components.jsx";
 import Dashboard from "./Dashboard.jsx";
 import Lancar from "./Lancar.jsx";
+import Relatorios from "./Relatorios.jsx";
+import ConfigLoja from "./ConfigLoja.jsx";
 import WhatsModal from "../ui/WhatsModal.jsx";
 import { CONFIG } from "../lib/config.js";
 import { fmtExtenso } from "../lib/format.js";
@@ -26,7 +28,12 @@ const TABS = [
   { key: "cfg", label: "Config", icon: Settings },
 ];
 
-export default function LojaApp({ loja, onSair, viaMaster = false }) {
+export default function LojaApp({
+  loja,
+  onSair,
+  viaMaster = false,
+  onLojaAtualizada,
+}) {
   const [tab, setTab] = useState("home");
   const [lancamentos, setLancamentos] = useState([]);
   const [midias, setMidias] = useState([]);
@@ -52,6 +59,8 @@ export default function LojaApp({ loja, onSair, viaMaster = false }) {
       setOrcamentos(o);
       setAbordadores(a);
       setOrigens(ori);
+      // Também recarrega a loja em si — pode ter mudado as metas
+      if (onLojaAtualizada) onLojaAtualizada();
     } catch (e) {
       // eslint-disable-next-line no-console
       console.error(e);
@@ -59,7 +68,7 @@ export default function LojaApp({ loja, onSair, viaMaster = false }) {
         "Não foi possível carregar os dados. Verifique a conexão com o Supabase."
       );
     }
-  }, [loja.id]);
+  }, [loja.id, onLojaAtualizada]);
 
   useEffect(() => {
     let cancelado = false;
@@ -71,7 +80,8 @@ export default function LojaApp({ loja, onSair, viaMaster = false }) {
     return () => {
       cancelado = true;
     };
-  }, [recarregar]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loja.id]);
 
   return (
     <>
@@ -132,15 +142,20 @@ export default function LojaApp({ loja, onSair, viaMaster = false }) {
               />
             )}
             {tab === "rel" && (
-              <EmBreve
-                nome="Relatórios"
-                descricao="Tabelas e indicadores do mês — habilitado na Etapa 3."
+              <Relatorios
+                loja={loja}
+                lancamentos={lancamentos}
+                midias={midias}
+                orcamentos={orcamentos}
+                origens={origens}
+                abordadores={abordadores}
               />
             )}
             {tab === "cfg" && (
-              <EmBreve
-                nome="Config"
-                descricao="Metas, origens de mídia, troca de senha — habilitado na Etapa 3."
+              <ConfigLoja
+                loja={loja}
+                origens={origens}
+                onSaved={recarregar}
               />
             )}
           </>

@@ -5,11 +5,12 @@
 // Suporta "não teve" (marca como zero pra fechar o dia).
 
 import React, { useEffect, useState } from "react";
-import { Ban, Check, Pencil } from "lucide-react";
+import { Ban, Check, Lock, Pencil } from "lucide-react";
 import { CAT_COR, CAT_LABEL, COLORS } from "../../lib/colors.js";
 import { fmtBRL, fmtCurto } from "../../lib/format.js";
 import { CONFIG } from "../../lib/config.js";
 import { upsertVenda } from "../../lib/db.js";
+import { podeEditar } from "../../lib/janela_edicao.js";
 import { Field, btn, inp } from "../../ui/Field.jsx";
 import MoneyInput from "../../ui/MoneyInput.jsx";
 import PeriodoSeletor from "../../ui/PeriodoSeletor.jsx";
@@ -58,8 +59,17 @@ export default function FormVenda({
 
   const ticketPrev = num(qtdVendas) > 0 ? valor / num(qtdVendas) : 0;
 
+  // BLOQUEIO EFETIVO da janela de edição (regra de negócio #5).
+  // Master sempre pode (viaMaster=true). Gerente respeita janela.
+  const gate = podeEditar(periodo, viaMaster);
+  const bloqueado = !gate.permitido;
+
   const salvar = async () => {
     if (valor <= 0) return;
+    if (bloqueado) {
+      setErro(gate.motivo);
+      return;
+    }
     setErro("");
     setSalvando(true);
     try {
@@ -86,6 +96,10 @@ export default function FormVenda({
   };
 
   const naoTeve = async () => {
+    if (bloqueado) {
+      setErro(gate.motivo);
+      return;
+    }
     setErro("");
     setSalvando(true);
     try {
@@ -145,6 +159,28 @@ export default function FormVenda({
           onChange={setPeriodo}
           permitirFuturo={permitirFuturo}
         />
+
+        {bloqueado && (
+          <div
+            style={{
+              background: "#FEF2F2",
+              border: "1px solid #FCA5A5",
+              borderRadius: 10,
+              padding: "10px 12px",
+              fontSize: 12,
+              color: COLORS.error,
+              display: "flex",
+              alignItems: "flex-start",
+              gap: 6,
+              lineHeight: 1.4,
+            }}
+          >
+            <Lock size={13} style={{ marginTop: 1, flexShrink: 0 }} />
+            <span>
+              <b>Mês fechado.</b> {gate.motivo}
+            </span>
+          </div>
+        )}
 
         {existente && (
           <div
@@ -231,12 +267,13 @@ export default function FormVenda({
         <div className="flex gap-2">
           <button
             onClick={salvar}
-            disabled={salvando || valor <= 0}
+            disabled={salvando || valor <= 0 || bloqueado}
             style={{
               ...btn(ok === "salvo" ? COLORS.success : cor),
               flex: 2,
-              opacity: salvando || valor <= 0 ? 0.6 : 1,
-              cursor: salvando || valor <= 0 ? "default" : "pointer",
+              opacity: salvando || valor <= 0 || bloqueado ? 0.6 : 1,
+              cursor:
+                salvando || valor <= 0 || bloqueado ? "default" : "pointer",
             }}
           >
             {salvando ? (
@@ -244,6 +281,10 @@ export default function FormVenda({
             ) : ok === "salvo" ? (
               <>
                 <Check size={16} /> Salvo!
+              </>
+            ) : bloqueado ? (
+              <>
+                <Lock size={14} /> Mês fechado
               </>
             ) : existente && !existente.naoTeve ? (
               `Atualizar ${CAT_LABEL[modo]}`
@@ -253,7 +294,7 @@ export default function FormVenda({
           </button>
           <button
             onClick={naoTeve}
-            disabled={salvando}
+            disabled={salvando || bloqueado}
             style={{
               flex: 1,
               border: `1.5px solid ${
@@ -264,12 +305,12 @@ export default function FormVenda({
               borderRadius: 10,
               fontWeight: 700,
               fontSize: 12.5,
-              cursor: salvando ? "default" : "pointer",
+              cursor: salvando || bloqueado ? "default" : "pointer",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
               gap: 5,
-              opacity: salvando ? 0.6 : 1,
+              opacity: salvando || bloqueado ? 0.5 : 1,
             }}
           >
             {ok === "naoteve" ? (

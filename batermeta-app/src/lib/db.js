@@ -356,3 +356,240 @@ async function registrarLog({ lojaId, tipo, periodo, de, para, quem }) {
     console.warn("[edit_log] falha ao registrar (ignorando):", e);
   }
 }
+
+/* ============================================================
+   ETAPA 3 — CONFIG DA LOJA (gerente)
+   ============================================================ */
+
+/* Salva configurações de meta de uma loja (todas as 6 metas + tipo).
+   Forma camelCase do front -> snake_case do banco. */
+export async function salvarConfigLoja(lojaId, cfg) {
+  const payload = {};
+  if (cfg.tipoPeriodo) payload.tipo_periodo = cfg.tipoPeriodo;
+  if (cfg.divisor != null) {
+    if (cfg.tipoPeriodo === "semanal") payload.semanas = Number(cfg.divisor);
+    else payload.dias_uteis = Number(cfg.divisor);
+  }
+  if (cfg.metas) {
+    if (cfg.metas.contratado) {
+      payload.meta_contratado = Number(cfg.metas.contratado.meta) || 0;
+      payload.super_contratado = Number(cfg.metas.contratado.superMeta) || 0;
+      payload.gold_contratado = Number(cfg.metas.contratado.gold) || 0;
+    }
+    if (cfg.metas.faturado) {
+      payload.meta_faturado = Number(cfg.metas.faturado.meta) || 0;
+      payload.super_faturado = Number(cfg.metas.faturado.superMeta) || 0;
+      payload.gold_faturado = Number(cfg.metas.faturado.gold) || 0;
+    }
+  }
+  const { error } = await supabase.from("lojas").update(payload).eq("id", lojaId);
+  if (error) throw error;
+}
+
+export async function salvarMetaAbordador(lojaId, valor) {
+  const v = Math.max(0, parseInt(String(valor), 10) || 0);
+  const { error } = await supabase
+    .from("lojas")
+    .update({ meta_abordador: v })
+    .eq("id", lojaId);
+  if (error) throw error;
+}
+
+/* --- ORIGENS (gerenciar) --- */
+export async function addOrigem(lojaId, nome) {
+  const nomeTrim = String(nome || "").trim();
+  if (!nomeTrim) return;
+  // ON CONFLICT (loja_id, nome) DO NOTHING garantido pelo índice criado na 005
+  const { error } = await supabase
+    .from("origens")
+    .insert({ loja_id: lojaId, nome: nomeTrim, ativa: true });
+  // Se já existir (conflito), reativa e devolve
+  if (error && /duplicate|conflict|unique/i.test(error.message || "")) {
+    await supabase
+      .from("origens")
+      .update({ ativa: true })
+      .eq("loja_id", lojaId)
+      .eq("nome", nomeTrim);
+    return;
+  }
+  if (error) throw error;
+}
+
+export async function arquivarOrigem(origemId) {
+  const { error } = await supabase
+    .from("origens")
+    .update({ ativa: false })
+    .eq("id", origemId);
+  if (error) throw error;
+}
+
+export async function reativarOrigem(origemId) {
+  const { error } = await supabase
+    .from("origens")
+    .update({ ativa: true })
+    .eq("id", origemId);
+  if (error) throw error;
+}
+
+/* --- TROCAR SENHA DA LOJA (pelo gerente) --- */
+export async function trocarSenhaLoja(lojaId, senhaAtual, senhaNova) {
+  // Verifica senha atual primeiro
+  const { data, error: e1 } = await supabase
+    .from("lojas")
+    .select("senha")
+    .eq("id", lojaId)
+    .single();
+  if (e1) throw e1;
+  if (!data || data.senha !== senhaAtual) {
+    throw new Error("Senha atual incorreta.");
+  }
+  const { error: e2 } = await supabase
+    .from("lojas")
+    .update({ senha: senhaNova })
+    .eq("id", lojaId);
+  if (e2) throw e2;
+}
+
+/* ============================================================
+   ETAPA 3 — CONFIG MASTER
+   ============================================================ */
+
+/* --- LOJAS (CRUD master) --- */
+export async function renomearLoja(lojaId, novoNome) {
+  const n = String(novoNome || "").trim();
+  if (!n) return;
+  const { error } = await supabase
+    .from("lojas")
+    .update({ nome: n })
+    .eq("id", lojaId);
+  if (error) throw error;
+}
+
+export async function redefinirSenhaLoja(lojaId, novaSenha) {
+  const s = String(novaSenha || "").trim();
+  if (!s) return;
+  const { error } = await supabase
+    .from("lojas")
+    .update({ senha: s })
+    .eq("id", lojaId);
+  if (error) throw error;
+}
+
+export async function toggleLojaAtiva(lojaId) {
+  // Primeiro busca o estado atual
+  const { data, error: e1 } = await supabase
+    .from("lojas")
+    .select("ativa")
+    .eq("id", lojaId)
+    .single();
+  if (e1) throw e1;
+  const novoEstado = data?.ativa === false ? true : false;
+  const { error: e2 } = await supabase
+    .from("lojas")
+    .update({ ativa: novoEstado })
+    .eq("id", lojaId);
+  if (e2) throw e2;
+}
+
+export async function addLoja({ nome, login, senha, tipoPeriodo = "diario" }) {
+  const payload = {
+    nome: String(nome || "").trim(),
+    login: String(login || "").toLowerCase().trim(),
+    senha: String(senha || "").trim(),
+    tipo_periodo: tipoPeriodo,
+    dias_uteis: 21,
+    semanas: 4,
+    ativa: true,
+    meta_contratado: 0,
+    super_contratado: 0,
+    gold_contratado: 0,
+    meta_faturado: 0,
+    super_faturado: 0,
+    gold_faturado: 0,
+    meta_abordador: 0,
+  };
+  const { error } = await supabase.from("lojas").insert(payload);
+  if (error) throw error;
+}
+
+/* ============================================================
+   MASTER_CONFIG (chave/valor único)
+   Estrutura: tabela com colunas chave (text) e valor (text), 1 linha por config.
+   ============================================================ */
+
+export async function listarMasterConfig() {
+  const { data, error } = await supabase.from("master_config").select("*");
+  if (error) {
+    // Se a tabela ainda não existir, retorna defaults
+    // eslint-disable-next-line no-console
+    console.warn("[master_config] não disponível, usando defaults:", error.message);
+    return {};
+  }
+  const out = {};
+  (data || []).forEach((row) => {
+    out[row.chave] = row.valor;
+  });
+  return out;
+}
+
+export async function salvarMasterConfig(chave, valor) {
+  // Upsert por chave
+  const { data: existentes, error: e1 } = await supabase
+    .from("master_config")
+    .select("chave")
+    .eq("chave", chave);
+  if (e1) throw e1;
+  if (existentes && existentes.length > 0) {
+    const { error: e2 } = await supabase
+      .from("master_config")
+      .update({ valor: String(valor) })
+      .eq("chave", chave);
+    if (e2) throw e2;
+  } else {
+    const { error: e3 } = await supabase
+      .from("master_config")
+      .insert({ chave, valor: String(valor) });
+    if (e3) throw e3;
+  }
+}
+
+/* --- HISTÓRICO MENSAL (para card "Melhor mês") ---
+   Retorna [{ mes, ano, total }] dos últimos N meses anteriores
+   (sem o mês atual). */
+export async function listarHistoricoMensal(lojaId, mesAtual, anoAtual, n = 3) {
+  // Calcula janelas de N meses ANTES do mês atual.
+  const out = [];
+  for (let i = n; i >= 1; i--) {
+    let mes = mesAtual - i;
+    let ano = anoAtual;
+    while (mes <= 0) {
+      mes += 12;
+      ano -= 1;
+    }
+    const inicio = `${ano}-${String(mes).padStart(2, "0")}-01`;
+    // Ultimo dia do mês: usar Date com day=0 do mês seguinte
+    const fim = new Date(ano, mes, 0); // mes em base 1; Date com mes em base 0 = mes-1; +1 mes = mes => day 0 = ultimo dia
+    const fimISO = `${ano}-${String(mes).padStart(2, "0")}-${String(fim.getDate()).padStart(2, "0")}`;
+    // Lança data-only periodos. Para semanais, S1/S2/etc não tem data; o mês anterior
+    // semanal não bate por aqui — aproximação: pegamos lançamentos com periodo LIKE 'S%'
+    // só do mês atual. Pra anteriores, ignoramos semanais (raro nas Rocha 9/11).
+    let q = supabase
+      .from("lancamentos")
+      .select("valor, categoria, periodo, nao_teve")
+      .gte("periodo", inicio)
+      .lte("periodo", fimISO);
+    if (lojaId) q = q.eq("loja_id", lojaId);
+    const { data, error } = await q;
+    if (error) {
+      // eslint-disable-next-line no-console
+      console.warn("[hist] erro buscando mês", mes, ano, error.message);
+      out.push({ mes, ano, total: 0 });
+      continue;
+    }
+    const total = (data || [])
+      .filter((r) => !r.nao_teve)
+      .reduce((s, r) => s + (Number(r.valor) || 0), 0);
+    out.push({ mes, ano, total });
+  }
+  return out;
+}
