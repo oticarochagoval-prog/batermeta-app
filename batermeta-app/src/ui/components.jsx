@@ -280,14 +280,16 @@ export function BlocoMeta({ titulo, cor, calc }) {
           pct={calc.pctMeta}
           sub={linhaSub(calc.metas.meta)}
         />
-        <MetaLinha
-          Icon={Star}
-          cor={COLORS.superCor}
-          nome="Super Meta"
-          valor={calc.metas.superMeta}
-          pct={calc.pctSuper}
-          sub={linhaSub(calc.metas.superMeta)}
-        />
+        {calc.metas.superMeta ? (
+          <MetaLinha
+            Icon={Star}
+            cor={COLORS.superCor}
+            nome="Super Meta"
+            valor={calc.metas.superMeta}
+            pct={calc.pctSuper}
+            sub={linhaSub(calc.metas.superMeta)}
+          />
+        ) : null}
         {calc.metas.gold ? (
           <MetaLinha
             Icon={Trophy}

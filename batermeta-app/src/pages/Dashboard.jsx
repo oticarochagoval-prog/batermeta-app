@@ -37,15 +37,20 @@ export default function Dashboard({
   const periodoHoje =
     loja.tipoPeriodo === "diario" ? CONFIG.hoje : `S${CONFIG.semanaAtual}`;
   const status = statusDia(loja, periodoHoje, lancamentos, midias, orcamentos);
-  const totalHoje = c.vendidoHoje + f.vendidoHoje;
+  // FIX (27/05/2026): o "destaque do dia" mostra APENAS o Faturado.
+  // Antes: somava Contratado + Faturado, mas eles são conceitos
+  // distintos (vendido vs. entregue/faturado) — somar dá um número
+  // que não significa nada. Faturado é o que vira dinheiro de fato.
+  const totalHoje = f.vendidoHoje;
+  const totalMes = f.acumulado;
   const periodoLabel =
     loja.tipoPeriodo === "diario"
       ? "O dia de hoje"
       : `A semana ${CONFIG.semanaAtual}`;
   const movLabel =
     loja.tipoPeriodo === "diario"
-      ? `MOV. DIÁRIO — ${fmtCurto(CONFIG.hoje)}`
-      : `MOV. SEMANAL — Semana ${CONFIG.semanaAtual}`;
+      ? `FATURADO HOJE — ${fmtCurto(CONFIG.hoje)}`
+      : `FATURADO — Semana ${CONFIG.semanaAtual}`;
 
   const histC = [...c.lancamentos]
     .sort((a, b) => b.periodo.localeCompare(a.periodo) || b.id - a.id)
@@ -54,7 +59,10 @@ export default function Dashboard({
     .sort((a, b) => b.periodo.localeCompare(a.periodo) || b.id - a.id)
     .slice(0, 8);
 
-  const atualTotal = c.acumulado + f.acumulado;
+  // FIX (27/05/2026): "Mês atual" no card de comparativo = Faturado.
+  // Faturado = realidade financeira. Quando entrar histórico real,
+  // compara Faturado x Faturado dos meses anteriores.
+  const atualTotal = f.acumulado;
   // Histórico de meses anteriores: carregado na Etapa 3.
   // Por enquanto, deixamos o card preparado mas sem comparativo.
   const temHistorico = false;

@@ -2,7 +2,12 @@
 //
 // Master entra como uma loja específica, com edição livre.
 // Inclui um seletor pra trocar de loja sem voltar pra home.
-// Tabs: Painel, Lançar, Relatórios, Senha (gerar nova).
+// Tabs: Painel, Lançar, Relatórios, Config, Senha (gerar nova).
+//
+// FIX (28/05/2026): Master agora tem acesso à Config da loja
+// (Metas + Origens). Antes só o gerente conseguia editar metas
+// e origens; agora se o gerente está de férias / sem acesso,
+// o master consegue ajustar tudo.
 
 import React, { useCallback, useEffect, useState } from "react";
 import { Pencil } from "lucide-react";
@@ -22,6 +27,8 @@ import { btn, inp } from "../../ui/Field.jsx";
 import Dashboard from "../Dashboard.jsx";
 import Lancar from "../Lancar.jsx";
 import Relatorios from "../Relatorios.jsx";
+import ConfigurarMetas from "../config/ConfigurarMetas.jsx";
+import OrigensMidia from "../config/OrigensMidia.jsx";
 import WhatsModal from "../../ui/WhatsModal.jsx";
 
 export default function MasterLojaView({
@@ -32,6 +39,7 @@ export default function MasterLojaView({
   recarregarLojas,
 }) {
   const [mtab, setMtab] = useState("painel");
+  const [subCfg, setSubCfg] = useState("metas");
   const [whats, setWhats] = useState(false);
   const [novaSenha, setNovaSenha] = useState("");
   const [salvandoSenha, setSalvandoSenha] = useState(false);
@@ -63,6 +71,13 @@ export default function MasterLojaView({
     }
   }, [loja.id]);
 
+  // Usado quando master edita Metas/Origens. Recarrega lojas (pra
+  // refletir metas novas) e dados da loja atual.
+  const onLojaAtualizada = async () => {
+    if (recarregarLojas) await recarregarLojas();
+    await recarregar();
+  };
+
   useEffect(() => {
     let cancelado = false;
     (async () => {
@@ -93,6 +108,7 @@ export default function MasterLojaView({
     ["painel", "Painel"],
     ["lancar", "Lançar"],
     ["rel", "Relatórios"],
+    ["cfg", "Config"],
     ["senha", "Senha"],
   ];
 
@@ -231,6 +247,65 @@ export default function MasterLojaView({
                 origens={origens}
                 abordadores={abordadores}
               />
+            )}
+            {mtab === "cfg" && (
+              <div style={{ padding: 16 }}>
+                <div
+                  style={{
+                    background: "#EEF2FF",
+                    borderRadius: 10,
+                    padding: "8px 12px",
+                    fontSize: 12,
+                    color: COLORS.primary,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    marginBottom: 14,
+                  }}
+                >
+                  <Pencil size={13} /> Editando as configurações de{" "}
+                  <b>{loja.nome}</b> como master.
+                </div>
+                <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
+                  {/* Sub-aba interna: Metas vs Origens */}
+                  {(() => {
+                    const SubButton = ({ k, lbl }) => (
+                      <button
+                        onClick={() => setSubCfg(k)}
+                        style={{
+                          flex: 1,
+                          padding: "9px 4px",
+                          borderRadius: 10,
+                          fontWeight: 700,
+                          fontSize: 12.5,
+                          cursor: "pointer",
+                          border: `1.5px solid ${COLORS.primary}`,
+                          background: subCfg === k ? COLORS.primary : "#fff",
+                          color: subCfg === k ? "#fff" : COLORS.primary,
+                        }}
+                      >
+                        {lbl}
+                      </button>
+                    );
+                    return (
+                      <>
+                        <SubButton k="metas" lbl="Metas" />
+                        <SubButton k="midia" lbl="Origens" />
+                      </>
+                    );
+                  })()}
+                </div>
+                {subCfg === "metas" && (
+                  <ConfigurarMetas loja={loja} onSaved={onLojaAtualizada} />
+                )}
+                {subCfg === "midia" && (
+                  <OrigensMidia
+                    loja={loja}
+                    origens={origens}
+                    onSaved={recarregar}
+                  />
+                )}
+              </div>
             )}
             {mtab === "senha" && (
               <div style={{ padding: 16 }}>

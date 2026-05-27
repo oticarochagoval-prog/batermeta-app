@@ -32,26 +32,29 @@ export default function RelatoriosConsolidados({
     const periodoHoje =
       loja.tipoPeriodo === "diario" ? CONFIG.hoje : `S${CONFIG.semanaAtual}`;
     const status = statusDia(loja, periodoHoje, lancamentos, midias, orcamentos);
+    // FIX (27/05/2026): "total" e métricas derivadas (% Meta, débito,
+    // qtd vendas, ticket) usam só Faturado. Antes somavam C+F e dava
+    // R$ 227k pra Rocha 1 (dupla contagem). Faturado = realidade
+    // financeira. Mantenho contratado/faturado separados pra exibir
+    // ambos onde for útil (resumo Vendas).
     return {
       loja,
       contratado: c.acumulado,
       faturado: f.acumulado,
-      total: c.acumulado + f.acumulado,
-      metaTotal: (c.metas.meta || 0) + (f.metas.meta || 0),
-      pctMeta: (c.pctMeta + f.pctMeta) / 2,
-      diferenca: c.diferenca + f.diferenca,
-      qtdVendas: c.qtdMes + f.qtdMes,
-      ticket:
-        c.qtdMes + f.qtdMes > 0
-          ? (c.acumulado + f.acumulado) / (c.qtdMes + f.qtdMes)
-          : 0,
+      total: f.acumulado,
+      metaTotal: f.metas.meta || 0,
+      pctMeta: f.pctMeta,
+      diferenca: f.diferenca,
+      qtdVendas: f.qtdMes,
+      ticket: f.qtdMes > 0 ? f.acumulado / f.qtdMes : 0,
       status,
     };
   });
 
   const totalContratado = dadosLoja.reduce((s, d) => s + d.contratado, 0);
   const totalFaturado = dadosLoja.reduce((s, d) => s + d.faturado, 0);
-  const totalRede = totalContratado + totalFaturado;
+  // FIX: "Faturamento total da rede" = só Faturado.
+  const totalRede = totalFaturado;
   const metaRede = dadosLoja.reduce((s, d) => s + d.metaTotal, 0);
   const qtdRede = dadosLoja.reduce((s, d) => s + d.qtdVendas, 0);
   const ticketRede = qtdRede > 0 ? totalRede / qtdRede : 0;
@@ -211,12 +214,12 @@ export default function RelatoriosConsolidados({
             }}
           >
             {[
-              ["FATURAMENTO TOTAL", fmtBRL(totalRede), COLORS.fg],
-              ["META DA REDE", fmtBRL(metaRede), COLORS.fg],
-              ["CONTRATADO", fmtBRL(totalContratado), COLORS.roxo],
+              ["FATURAMENTO DA REDE", fmtBRL(totalRede), COLORS.fg],
+              ["META DE FATURADO", fmtBRL(metaRede), COLORS.fg],
+              ["CONTRATADO (info)", fmtBRL(totalContratado), COLORS.roxo],
               ["FATURADO", fmtBRL(totalFaturado), COLORS.primary],
               ["TICKET MÉDIO", fmtBRL(ticketRede), COLORS.fg],
-              ["VENDAS", String(qtdRede), COLORS.fg],
+              ["VENDAS FATURADAS", String(qtdRede), COLORS.fg],
               [
                 diffRede >= 0 ? "CRÉDITO" : "DÉBITO",
                 fmtBRL(Math.abs(diffRede)),

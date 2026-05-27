@@ -8,10 +8,16 @@ export function calcMeta(loja, categoria, lancamentos) {
   const m = loja.metas[categoria];
   const divisor =
     loja.tipoPeriodo === "diario" ? loja.diasUteis : loja.semanas;
-  const decorridos =
+  // FIX (27/05/2026): decorridos NUNCA pode ser maior que divisor.
+  // Antes: se a loja configurava 20 dias úteis e o sistema contava 23
+  // (incluindo sábados), o "esperado" estourava acima da meta. Resultado:
+  // débito de R$ 109k em loja que tinha meta de R$ 100k. Capando em
+  // `divisor`, no fim do mês esperado = meta (comportamento correto).
+  const decorridosBrutos =
     loja.tipoPeriodo === "diario"
       ? CONFIG.diasUteisDecorridos
       : CONFIG.semanaAtual;
+  const decorridos = Math.min(decorridosBrutos, divisor);
   const metaPeriodo = m.meta / divisor;
   const metaAcumulada = metaPeriodo * decorridos;
   const doMes = lancamentos.filter(

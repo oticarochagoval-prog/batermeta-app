@@ -63,17 +63,32 @@ function mapLanc(row) {
 }
 
 export async function listarLancamentos(lojaId, mes, ano) {
-  const inicio = `${ano}-${String(mes).padStart(2, "0")}-01`;
-  const fim = `${ano}-${String(mes).padStart(2, "0")}-31`;
-  let q = supabase
-    .from("lancamentos")
-    .select("*")
-    .gte("periodo", inicio)
-    .lte("periodo", fim);
+  // FIX (28/05/2026): bug do período semanal.
+  // Lojas semanais (Rocha 9 e 11) salvam periodo como "S1"/"S2"/etc.
+  // Comparar isso entre "2026-05-01" e "2026-05-31" exclui esses
+  // registros (na ordem ASCII "S" > "2"). Resultado: a tela mostrava
+  // "Sem lançamentos" mesmo a Rocha 9 lançando direitinho.
+  //
+  // Solução: buscar TODOS da loja e filtrar em JS. Volume é baixo
+  // (uns 100 registros por loja/mês), não tem custo.
+  // Periodos "S1"-"S4" entram sempre quando o filtro é do mês corrente
+  // (porque o banco não armazena data pra lançamento semanal).
+  let q = supabase.from("lancamentos").select("*");
   if (lojaId) q = q.eq("loja_id", lojaId);
   const { data, error } = await q;
   if (error) throw error;
-  return (data || []).map(mapLanc);
+  const ehMesAtual = mes === new Date().getMonth() + 1 && ano === new Date().getFullYear();
+  const inicio = `${ano}-${String(mes).padStart(2, "0")}-01`;
+  const fim = `${ano}-${String(mes).padStart(2, "0")}-31`;
+  const filtrados = (data || []).filter((r) => {
+    const p = String(r.periodo || "");
+    if (p.startsWith("S")) {
+      // Lançamento semanal só faz sentido pro mês corrente.
+      return ehMesAtual;
+    }
+    return p >= inicio && p <= fim;
+  });
+  return filtrados.map(mapLanc);
 }
 
 /* ---------- MIDIAS ---------- */
@@ -91,17 +106,20 @@ function mapMidia(row) {
 }
 
 export async function listarMidias(lojaId, mes, ano) {
-  const inicio = `${ano}-${String(mes).padStart(2, "0")}-01`;
-  const fim = `${ano}-${String(mes).padStart(2, "0")}-31`;
-  let q = supabase
-    .from("midias")
-    .select("*")
-    .gte("periodo", inicio)
-    .lte("periodo", fim);
+  // FIX (28/05/2026): mesmo bug do período semanal. Veja listarLancamentos.
+  let q = supabase.from("midias").select("*");
   if (lojaId) q = q.eq("loja_id", lojaId);
   const { data, error } = await q;
   if (error) throw error;
-  return (data || []).map(mapMidia);
+  const ehMesAtual = mes === new Date().getMonth() + 1 && ano === new Date().getFullYear();
+  const inicio = `${ano}-${String(mes).padStart(2, "0")}-01`;
+  const fim = `${ano}-${String(mes).padStart(2, "0")}-31`;
+  const filtrados = (data || []).filter((r) => {
+    const p = String(r.periodo || "");
+    if (p.startsWith("S")) return ehMesAtual;
+    return p >= inicio && p <= fim;
+  });
+  return filtrados.map(mapMidia);
 }
 
 /* ---------- ORIGENS ---------- */

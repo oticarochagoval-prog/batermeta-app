@@ -34,14 +34,19 @@ export default function MasterHome({
       midias,
       orcamentos
     );
+    // FIX (27/05/2026): "Faturamento" no painel = apenas Faturado.
+    // Antes somava Contratado + Faturado (dupla contagem) e dava
+    // valores absurdos tipo R$ 227k pra uma loja. Faturado é o que
+    // virou caixa de fato. % Meta tb usa só Faturado pra ficar
+    // coerente com o número exibido.
     return {
       loja,
       c,
       f,
       status,
-      totalHoje: c.vendidoHoje + f.vendidoHoje,
-      totalMes: c.acumulado + f.acumulado,
-      pct: (c.pctMeta + f.pctMeta) / 2,
+      totalHoje: f.vendidoHoje,
+      totalMes: f.acumulado,
+      pct: f.pctMeta,
     };
   });
 
@@ -52,15 +57,10 @@ export default function MasterHome({
   });
 
   const totalDia = linhas.reduce((s, l) => s + l.totalHoje, 0);
-  const totalMes = linhas.reduce(
-    (s, l) => s + l.c.acumulado + l.f.acumulado,
-    0
-  );
-  const qtdMes = linhas.reduce((s, l) => s + l.c.qtdMes + l.f.qtdMes, 0);
+  const totalMes = linhas.reduce((s, l) => s + l.f.acumulado, 0);
+  const qtdMes = linhas.reduce((s, l) => s + l.f.qtdMes, 0);
   const ticketGeral = qtdMes > 0 ? totalMes / qtdMes : 0;
-  const bateram = linhas.filter(
-    (l) => l.c.diferenca >= 0 && l.f.diferenca >= 0
-  ).length;
+  const bateram = linhas.filter((l) => l.f.diferenca >= 0).length;
   const incompletas = linhas.filter((l) => !l.status.completo);
   const nLojas = Math.max(1, lojasAtivas.length);
   const maxFat = Math.max(1, ...linhas.map((l) => l.totalMes));
@@ -363,7 +363,10 @@ export default function MasterHome({
           : "% DA META"}
       </div>
       {linhas.map(({ loja, c, f, status, totalHoje, pct }) => {
-        const cd = c.diferenca + f.diferenca;
+        // FIX (27/05/2026): cd (crédito/débito) usa só Faturado.
+        // Antes somava as diferenças de C e F (que estouravam mesmo
+        // calculando certo, pois cada um tem sua meta separada).
+        const cd = f.diferenca;
         return (
           <Card
             key={loja.id}
