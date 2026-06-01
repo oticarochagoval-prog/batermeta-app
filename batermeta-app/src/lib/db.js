@@ -10,6 +10,25 @@
 
 import { supabase } from "./supabase.js";
 
+/* ============================================================
+   HELPER (01/06/2026): calcular último dia do mês corretamente.
+
+   Bug crítico que travou o sistema em 01/06/2026: o código tinha
+   `${ano}-${mes}-31` hardcoded em 4 lugares. Funcionou em maio
+   (que tem 31 dias). Em junho virou "2026-06-31" — data inválida
+   — e o Postgres retornou erro 400 em TODA query, derrubando o
+   sistema inteiro.
+
+   Esta função sempre retorna o último dia REAL do mês (28, 29, 30
+   ou 31 conforme o caso, incluindo anos bissextos).
+   ============================================================ */
+function fimDoMesISO(mes, ano) {
+  // Truque: dia 0 do MÊS SEGUINTE = último dia do mês atual.
+  // Ex.: new Date(2026, 6, 0) = 30 de junho de 2026.
+  const ultimoDia = new Date(ano, mes, 0).getDate();
+  return `${ano}-${String(mes).padStart(2, "0")}-${String(ultimoDia).padStart(2, "0")}`;
+}
+
 /* ---------- LOJAS ---------- */
 
 function mapLoja(row) {
@@ -79,7 +98,7 @@ export async function listarLancamentos(lojaId, mes, ano) {
   if (error) throw error;
   const ehMesAtual = mes === new Date().getMonth() + 1 && ano === new Date().getFullYear();
   const inicio = `${ano}-${String(mes).padStart(2, "0")}-01`;
-  const fim = `${ano}-${String(mes).padStart(2, "0")}-31`;
+  const fim = fimDoMesISO(mes, ano);
   const filtrados = (data || []).filter((r) => {
     const p = String(r.periodo || "");
     if (p.startsWith("S")) {
@@ -113,7 +132,7 @@ export async function listarMidias(lojaId, mes, ano) {
   if (error) throw error;
   const ehMesAtual = mes === new Date().getMonth() + 1 && ano === new Date().getFullYear();
   const inicio = `${ano}-${String(mes).padStart(2, "0")}-01`;
-  const fim = `${ano}-${String(mes).padStart(2, "0")}-31`;
+  const fim = fimDoMesISO(mes, ano);
   const filtrados = (data || []).filter((r) => {
     const p = String(r.periodo || "");
     if (p.startsWith("S")) return ehMesAtual;
@@ -155,7 +174,7 @@ function mapOrc(row) {
 
 export async function listarOrcamentos(lojaId, mes, ano) {
   const inicio = `${ano}-${String(mes).padStart(2, "0")}-01`;
-  const fim = `${ano}-${String(mes).padStart(2, "0")}-31`;
+  const fim = fimDoMesISO(mes, ano);
   let q = supabase
     .from("orcamentos")
     .select("*")
@@ -182,7 +201,7 @@ function mapAbord(row) {
 
 export async function listarAbordadores(lojaId, mes, ano) {
   const inicio = `${ano}-${String(mes).padStart(2, "0")}-01`;
-  const fim = `${ano}-${String(mes).padStart(2, "0")}-31`;
+  const fim = fimDoMesISO(mes, ano);
   let q = supabase
     .from("abordadores")
     .select("*")
