@@ -134,58 +134,6 @@ export default function ConfigurarMetas({ loja, onSaved }) {
 
   return (
     <>
-      {/* tipo de período */}
-      <Card style={{ padding: 16, marginBottom: 14 }}>
-        <div
-          style={{
-            fontWeight: 700,
-            fontSize: 14,
-            fontFamily: "Sora",
-            marginBottom: 4,
-          }}
-        >
-          Tipo de período
-        </div>
-        <p
-          style={{
-            fontSize: 12,
-            color: COLORS.muted,
-            marginBottom: 12,
-            lineHeight: 1.5,
-          }}
-        >
-          Lojas com atendimento todo dia usam <b>Diário</b>. Lojas de interior,
-          com atendimento 1–2x na semana, usam <b>Semanal</b>.
-        </p>
-        <div className="flex gap-2">
-          {[
-            ["diario", "Diário"],
-            ["semanal", "Semanal"],
-          ].map(([k, lbl]) => (
-            <button
-              key={k}
-              onClick={() => {
-                setTipo(k);
-                setDivisor(k === "diario" ? 21 : 4);
-              }}
-              style={{
-                flex: 1,
-                padding: "10px",
-                borderRadius: 10,
-                fontWeight: 700,
-                fontSize: 13,
-                cursor: "pointer",
-                border: `1.5px solid ${COLORS.primary}`,
-                background: tipo === k ? COLORS.primary : "#fff",
-                color: tipo === k ? "#fff" : COLORS.primary,
-              }}
-            >
-              {lbl}
-            </button>
-          ))}
-        </div>
-      </Card>
-
       {/* divisor */}
       <Card style={{ padding: 16, marginBottom: 14 }}>
         <div

@@ -224,31 +224,6 @@ export default function CfgLojas({ lojasState, recarregarLojas }) {
               placeholder="Senha inicial"
               style={inp}
             />
-            <div className="flex gap-2">
-              {[
-                ["diario", "Diário"],
-                ["semanal", "Semanal"],
-              ].map(([k, lbl]) => (
-                <button
-                  key={k}
-                  onClick={() => setNovo({ ...novo, tipoPeriodo: k })}
-                  style={{
-                    flex: 1,
-                    padding: "8px",
-                    borderRadius: 8,
-                    fontWeight: 700,
-                    fontSize: 12,
-                    cursor: "pointer",
-                    border: `1.5px solid ${COLORS.primary}`,
-                    background:
-                      novo.tipoPeriodo === k ? COLORS.primary : "#fff",
-                    color: novo.tipoPeriodo === k ? "#fff" : COLORS.primary,
-                  }}
-                >
-                  {lbl}
-                </button>
-              ))}
-            </div>
             <div style={{ fontSize: 11, color: COLORS.muted, lineHeight: 1.4 }}>
               Você define a senha inicial e repassa pro gerente. A loja nasce
               sem metas — configure depois pelo app da loja.

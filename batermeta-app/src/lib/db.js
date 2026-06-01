@@ -38,7 +38,11 @@ function mapLoja(row) {
     login: row.login,
     senha: row.senha,
     ativa: row.ativa !== false,
-    tipoPeriodo: row.tipo_periodo || "diario",
+    // fix6.1: semanal removido — toda loja é tratada como diária.
+    // Mesmo que o banco ainda tenha tipo_periodo='semanal' em alguma
+    // linha, o sistema inteiro passa a operar por data. Forçar aqui
+    // neutraliza todos os ramos "S1-S4" sem precisar mexer em cada tela.
+    tipoPeriodo: "diario",
     diasUteis: row.dias_uteis || 21,
     semanas: row.semanas || 4,
     metas: {
@@ -82,32 +86,36 @@ function mapLanc(row) {
 }
 
 export async function listarLancamentos(lojaId, mes, ano) {
-  // FIX (28/05/2026): bug do período semanal.
-  // Lojas semanais (Rocha 9 e 11) salvam periodo como "S1"/"S2"/etc.
-  // Comparar isso entre "2026-05-01" e "2026-05-31" exclui esses
-  // registros (na ordem ASCII "S" > "2"). Resultado: a tela mostrava
-  // "Sem lançamentos" mesmo a Rocha 9 lançando direitinho.
-  //
-  // Solução: buscar TODOS da loja e filtrar em JS. Volume é baixo
-  // (uns 100 registros por loja/mês), não tem custo.
-  // Periodos "S1"-"S4" entram sempre quando o filtro é do mês corrente
-  // (porque o banco não armazena data pra lançamento semanal).
-  let q = supabase.from("lancamentos").select("*");
+  // Todas as lojas são diárias: periodo no formato "AAAA-MM-DD".
+  // Filtra direto no banco pelo intervalo do mês.
+  const inicio = `${ano}-${String(mes).padStart(2, "0")}-01`;
+  const fim = fimDoMesISO(mes, ano);
+  let q = supabase
+    .from("lancamentos")
+    .select("*")
+    .gte("periodo", inicio)
+    .lte("periodo", fim);
   if (lojaId) q = q.eq("loja_id", lojaId);
   const { data, error } = await q;
   if (error) throw error;
-  const ehMesAtual = mes === new Date().getMonth() + 1 && ano === new Date().getFullYear();
-  const inicio = `${ano}-${String(mes).padStart(2, "0")}-01`;
-  const fim = fimDoMesISO(mes, ano);
-  const filtrados = (data || []).filter((r) => {
-    const p = String(r.periodo || "");
-    if (p.startsWith("S")) {
-      // Lançamento semanal só faz sentido pro mês corrente.
-      return ehMesAtual;
-    }
-    return p >= inicio && p <= fim;
-  });
-  return filtrados.map(mapLanc);
+  return (data || []).map(mapLanc);
+}
+
+/* Busca pontual de UM lançamento (loja + periodo + categoria).
+   Usada pelo FormVenda pra carregar o valor de qualquer data —
+   inclusive de meses fora do que está sendo visualizado. Corrige o
+   bug de mostrar R$ 0 ao escolher uma data antiga no calendário. */
+export async function buscarLancamento(lojaId, periodo, categoria) {
+  const { data, error } = await supabase
+    .from("lancamentos")
+    .select("*")
+    .eq("loja_id", lojaId)
+    .eq("periodo", periodo)
+    .eq("categoria", categoria)
+    .limit(1);
+  if (error) throw error;
+  const row = (data || [])[0];
+  return row ? mapLanc(row) : null;
 }
 
 /* ---------- MIDIAS ---------- */
@@ -125,20 +133,18 @@ function mapMidia(row) {
 }
 
 export async function listarMidias(lojaId, mes, ano) {
-  // FIX (28/05/2026): mesmo bug do período semanal. Veja listarLancamentos.
-  let q = supabase.from("midias").select("*");
+  // Todas as lojas são diárias: periodo "AAAA-MM-DD".
+  const inicio = `${ano}-${String(mes).padStart(2, "0")}-01`;
+  const fim = fimDoMesISO(mes, ano);
+  let q = supabase
+    .from("midias")
+    .select("*")
+    .gte("periodo", inicio)
+    .lte("periodo", fim);
   if (lojaId) q = q.eq("loja_id", lojaId);
   const { data, error } = await q;
   if (error) throw error;
-  const ehMesAtual = mes === new Date().getMonth() + 1 && ano === new Date().getFullYear();
-  const inicio = `${ano}-${String(mes).padStart(2, "0")}-01`;
-  const fim = fimDoMesISO(mes, ano);
-  const filtrados = (data || []).filter((r) => {
-    const p = String(r.periodo || "");
-    if (p.startsWith("S")) return ehMesAtual;
-    return p >= inicio && p <= fim;
-  });
-  return filtrados.map(mapMidia);
+  return (data || []).map(mapMidia);
 }
 
 /* ---------- ORIGENS ---------- */

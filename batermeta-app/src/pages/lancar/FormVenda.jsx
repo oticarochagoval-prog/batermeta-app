@@ -9,7 +9,7 @@ import { Ban, Check, Lock, Pencil } from "lucide-react";
 import { CAT_COR, CAT_LABEL, COLORS } from "../../lib/colors.js";
 import { fmtBRL, fmtCurto } from "../../lib/format.js";
 import { CONFIG } from "../../lib/config.js";
-import { upsertVenda } from "../../lib/db.js";
+import { upsertVenda, buscarLancamento } from "../../lib/db.js";
 import { podeEditar } from "../../lib/janela_edicao.js";
 import { Field, btn, inp } from "../../ui/Field.jsx";
 import MoneyInput from "../../ui/MoneyInput.jsx";
@@ -22,11 +22,24 @@ export default function FormVenda({
   permitirFuturo,
   viaMaster,
   onSaved,
+  mesView,
+  anoView,
 }) {
   const cor = CAT_COR[modo];
   const num = (v) => parseInt(String(v), 10) || 0;
-  const periodoHoje =
-    loja.tipoPeriodo === "diario" ? CONFIG.hoje : `S${CONFIG.semanaAtual}`;
+
+  // Default do período (todas as lojas são diárias):
+  // - mês ATUAL → "hoje"
+  // - outro mês → último dia desse mês
+  const ehMesAtual =
+    !mesView || (mesView === CONFIG.mes && anoView === CONFIG.ano);
+  let periodoHoje;
+  if (ehMesAtual) {
+    periodoHoje = CONFIG.hoje;
+  } else {
+    const ultimoDia = new Date(anoView, mesView, 0).getDate();
+    periodoHoje = `${anoView}-${String(mesView).padStart(2, "0")}-${String(ultimoDia).padStart(2, "0")}`;
+  }
 
   const [periodo, setPeriodo] = useState(periodoHoje);
   const [valor, setValor] = useState(0);
@@ -36,10 +49,41 @@ export default function FormVenda({
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState("");
 
-  const existente = lancamentos.find(
-    (l) =>
-      l.lojaId === loja.id && l.periodo === periodo && l.categoria === modo
-  );
+  // Lançamento existente para (loja, periodo, categoria).
+  // FIX (Bug C): em vez de procurar no array `lancamentos` — que só
+  // contém o mês visualizado —, busca direto no banco sempre que a
+  // data muda. Assim escolher uma data de outro mês no calendário
+  // carrega o valor certo, não R$ 0.
+  const [existente, setExistente] = useState(null);
+  const [carregandoExist, setCarregandoExist] = useState(false);
+
+  useEffect(() => {
+    let cancelado = false;
+    // Otimização: se o periodo estiver no array já carregado, usa ele
+    // na hora (sem flicker) — e ainda assim confirma com o banco.
+    const noArray = lancamentos.find(
+      (l) =>
+        l.lojaId === loja.id && l.periodo === periodo && l.categoria === modo
+    );
+    if (noArray) setExistente(noArray);
+    setCarregandoExist(true);
+    (async () => {
+      try {
+        const achado = await buscarLancamento(loja.id, periodo, modo);
+        if (!cancelado) setExistente(achado);
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.error("[FormVenda] buscarLancamento:", e);
+        if (!cancelado && !noArray) setExistente(null);
+      } finally {
+        if (!cancelado) setCarregandoExist(false);
+      }
+    })();
+    return () => {
+      cancelado = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [periodo, modo, loja.id]);
 
   useEffect(() => {
     if (existente && !existente.naoTeve) {
@@ -52,7 +96,7 @@ export default function FormVenda({
       setObs("");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [periodo, modo, existente?.id]);
+  }, [periodo, modo, existente?.id, existente?.naoTeve]);
 
   const periodoLabelCurto = (p) =>
     p.startsWith("S") ? `Semana ${p.slice(1)}` : fmtCurto(p);
@@ -85,6 +129,13 @@ export default function FormVenda({
       });
       setOk("salvo");
       setTimeout(() => setOk(""), 1800);
+      // Atualiza a faixa "já existe" mesmo que a data editada esteja
+      // fora do mês visualizado (onSaved só recarrega o mês visto).
+      try {
+        setExistente(await buscarLancamento(loja.id, periodo, modo));
+      } catch (_) {
+        /* ignora */
+      }
       onSaved && onSaved();
     } catch (e) {
       // eslint-disable-next-line no-console
@@ -118,6 +169,11 @@ export default function FormVenda({
       setObs("");
       setOk("naoteve");
       setTimeout(() => setOk(""), 1800);
+      try {
+        setExistente(await buscarLancamento(loja.id, periodo, modo));
+      } catch (_) {
+        /* ignora */
+      }
       onSaved && onSaved();
     } catch (e) {
       // eslint-disable-next-line no-console
@@ -147,8 +203,7 @@ export default function FormVenda({
           fontSize: 14,
         }}
       >
-        Lançar {CAT_LABEL[modo]} — total{" "}
-        {loja.tipoPeriodo === "diario" ? "do dia" : "da semana"}
+        Lançar {CAT_LABEL[modo]} — total do dia
       </div>
       <div
         style={{ padding: 16, display: "flex", flexDirection: "column", gap: 12 }}

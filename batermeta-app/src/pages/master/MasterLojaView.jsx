@@ -150,7 +150,7 @@ export default function MasterLojaView({
         >
           {lojasState.map((l) => (
             <option key={l.id} value={l.id}>
-              {l.nome} {l.tipoPeriodo === "semanal" ? "(semanal)" : ""}
+              {l.nome}
             </option>
           ))}
         </select>
