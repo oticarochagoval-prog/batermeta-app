@@ -106,9 +106,9 @@ export default function Dashboard({
         </div>
         <div className="flex gap-2">
           {[
-            ["Contratado", c.vendidoHoje, c.acumulado],
-            ["Faturado", f.vendidoHoje, f.acumulado],
-          ].map(([k, hoje, mes]) => (
+            ["Contratado", c.vendidoHoje, c.acumulado, c.ticketMes, c.qtdMes],
+            ["Faturado", f.vendidoHoje, f.acumulado, f.ticketMes, f.qtdMes],
+          ].map(([k, hoje, mes, ticket, qtd]) => (
             <div
               key={k}
               style={{
@@ -156,6 +156,41 @@ export default function Dashboard({
               >
                 {fmtBRL(mes)}
               </div>
+              {/* FIX (01/06/2026): ticket médio do mês embaixo de cada card */}
+              {qtd > 0 && (
+                <>
+                  <div
+                    style={{
+                      fontSize: 9.5,
+                      opacity: 0.65,
+                      letterSpacing: 0.4,
+                      marginTop: 4,
+                    }}
+                  >
+                    TICKET MÉDIO
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 12,
+                      fontWeight: 700,
+                      fontFamily: "Sora",
+                      opacity: 0.9,
+                    }}
+                  >
+                    {fmtBRL(ticket)}
+                    <span
+                      style={{
+                        fontSize: 9.5,
+                        fontWeight: 600,
+                        opacity: 0.7,
+                        marginLeft: 4,
+                      }}
+                    >
+                      · {qtd}{qtd === 1 ? " venda" : " vendas"}
+                    </span>
+                  </div>
+                </>
+              )}
             </div>
           ))}
         </div>

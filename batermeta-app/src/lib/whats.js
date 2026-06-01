@@ -2,8 +2,11 @@
 //
 // Monta o relatório de um período-alvo (data ISO ou 'S1'..'S4').
 // Usado pelo modal de WhatsApp na tela inicial.
+//
+// FIX (01/06/2026): adicionado montaMsgMensal() pra gerar fechamento
+// do mês todo (não só de um dia/semana específica).
 
-import { calcMeta } from "./calc.js";
+import { calcMeta, calcMidia, calcOrc } from "./calc.js";
 import { CONFIG } from "./config.js";
 import { fmtBRL, fmtCurto, fmtExtenso, MES } from "./format.js";
 
@@ -61,6 +64,84 @@ export function montaMsg(loja, lancamentos, midias, orcamentos, periodoAlvo) {
     `*ORÇAMENTOS*\n${
       orcAlvo ? `Cliente registrado em ${fmtCurto(orcAlvo.dataChegou)}` : "Sem registro"
     }\n\n` +
+    `_Bata suas metas todo dia_`
+  );
+}
+
+/**
+ * Monta relatório de FECHAMENTO MENSAL (todo o mês selecionado).
+ *
+ * Usado quando o gerente clica em "Mês" no WhatsModal.
+ * Diferente de montaMsg() que pega um único dia/semana, esta função
+ * traz os totais consolidados do mês INTEIRO + ranking de mídia
+ * (top 5) + resumo de orçamentos.
+ *
+ * Os arrays `lancamentos`, `midias`, `orcamentos` e `origens` devem
+ * já estar filtrados pro mês/ano correto. Quem chama é responsável
+ * por essa filtragem (normalmente o WhatsModal chamando listar* com
+ * o (mes, ano) escolhido).
+ *
+ * Params:
+ *   loja           — objeto loja
+ *   lancamentos    — lançamentos do mês alvo
+ *   midias         — midias do mês alvo
+ *   orcamentos     — orçamentos do mês alvo
+ *   origens        — origens da loja (não filtra por mês — origem é cadastro)
+ *   mes, ano       — pra exibir no cabeçalho ("Maio/2026")
+ */
+export function montaMsgMensal(
+  loja,
+  lancamentos,
+  midias,
+  orcamentos,
+  origens,
+  mes,
+  ano
+) {
+  const c = calcMeta(loja, "contratado", lancamentos);
+  const f = calcMeta(loja, "faturado", lancamentos);
+  const midiaRank = calcMidia(loja, midias, origens);
+  const orc = calcOrc(loja, orcamentos);
+
+  const linha = (x, nome) => {
+    const cd =
+      x.diferenca >= 0
+        ? `Crédito ${fmtBRL(x.diferenca)}`
+        : `Débito ${fmtBRL(Math.abs(x.diferenca))}`;
+    const tk =
+      x.qtdMes > 0
+        ? `\nTicket médio: ${fmtBRL(x.ticketMes)} (${x.qtdMes} vendas)`
+        : "\nSem vendas no mês";
+    return `*${nome}*\nAcumulado: ${fmtBRL(
+      x.acumulado
+    )}\nMeta: ${fmtBRL(x.metas.meta)} — ${x.pctMeta.toFixed(1)}% (${cd})${tk}`;
+  };
+
+  // Mídia: top 5 origens por quantidade
+  const topMidia = midiaRank
+    .filter((m) => m.qtd > 0)
+    .sort((a, b) => b.qtd - a.qtd)
+    .slice(0, 5);
+  const totalMidia = midiaRank.reduce((s, m) => s + m.qtd, 0);
+  const midiaTxt =
+    topMidia.length === 0
+      ? "Sem registros de mídia no mês"
+      : topMidia.map((m) => `• ${m.nome}: ${m.qtd} clientes`).join("\n") +
+        `\nTotal: ${totalMidia} clientes em mídia`;
+
+  // Orçamentos
+  const orcTxt =
+    orc.total === 0
+      ? "Sem orçamentos registrados"
+      : `Atendidos: ${orc.total}\nCompraram: ${orc.compraram} (${orc.taxa.toFixed(0)}%)`;
+
+  return (
+    `*BATERMETA — ${loja.nome}*\n` +
+    `Fechamento de ${MES[mes - 1]}/${ano}\n\n` +
+    `${linha(c, "CONTRATADO")}\n\n` +
+    `${linha(f, "FATURADO")}\n\n` +
+    `*MÍDIA*\n${midiaTxt}\n\n` +
+    `*ORÇAMENTOS*\n${orcTxt}\n\n` +
     `_Bata suas metas todo dia_`
   );
 }
