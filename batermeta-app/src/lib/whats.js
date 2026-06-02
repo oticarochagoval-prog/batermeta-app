@@ -35,6 +35,22 @@ export function montaMsg(loja, lancamentos, midias, orcamentos, periodoAlvo) {
     return e ? { v: e.valor, q: e.qtdVendas || 0 } : { v: 0, q: 0 };
   };
 
+  // fix6.3: confere se o VALOR da mídia bate com o Contratado do alvo.
+  // (Mesma regra da tela de lançar: só o valor precisa bater; nº de
+  // clientes pode ser menor, pois 1 cliente pode gerar 2 vendas.)
+  const valorMidiaAlvo = midias
+    .filter((m) => m.lojaId === loja.id && m.periodo === alvo && !m.naoTeve)
+    .reduce((s, m) => s + (m.valor || 0), 0);
+  const contratadoAlvo = valorNoAlvo("contratado").v;
+  const difMidia = valorMidiaAlvo - contratadoAlvo;
+  const checaMidia = () => {
+    if (contratadoAlvo <= 0) return "";
+    if (Math.abs(difMidia) < 0.01) return "\n✅ Mídia confere com o Contratado";
+    if (difMidia < 0)
+      return `\n⚠️ Mídia R$ ${fmtBRL(valorMidiaAlvo).replace("R$ ", "")} x Contratado ${fmtBRL(contratadoAlvo)} — faltam ${fmtBRL(Math.abs(difMidia))} sem origem`;
+    return `\n⚠️ Mídia ${fmtBRL(valorMidiaAlvo)} maior que o Contratado ${fmtBRL(contratadoAlvo)} — confira (diferença ${fmtBRL(difMidia)})`;
+  };
+
   const linha = (x, cat) => {
     // fix6.2: crédito/débito = acumulado − META CHEIA. Passou=crédito,
     // faltou=débito. Mostra % atingida e % que falta.
@@ -70,7 +86,7 @@ export function montaMsg(loja, lancamentos, midias, orcamentos, periodoAlvo) {
     `*BATERMETA — ${loja.nome}*\n${cabData}\n\n` +
     `*CONTRATADO*\n${linha(c, "contratado")}\n\n` +
     `*FATURADO (MOV. DIÁRIO)*\n${linha(f, "faturado")}\n\n` +
-    `*MÍDIA*\n${midAlvo} cliente(s) por mídia\n\n` +
+    `*MÍDIA*\n${midAlvo} cliente(s) por mídia${checaMidia()}\n\n` +
     `*ORÇAMENTOS*\n${
       orcAlvo ? `Cliente registrado em ${fmtCurto(orcAlvo.dataChegou)}` : "Sem registro"
     }\n\n` +
@@ -143,11 +159,23 @@ export function montaMsgMensal(
     .sort((a, b) => b.qtd - a.qtd)
     .slice(0, 5);
   const totalMidia = midiaRank.reduce((s, m) => s + m.qtd, 0);
+  // fix6.3: confere VALOR total da mídia x Contratado acumulado do mês.
+  const valorMidiaMes = midiaRank.reduce((s, m) => s + (m.valor || 0), 0);
+  const difMidiaMes = valorMidiaMes - c.acumulado;
+  let checaMidiaMes = "";
+  if (c.acumulado > 0) {
+    if (Math.abs(difMidiaMes) < 0.01)
+      checaMidiaMes = "\n✅ Mídia confere com o Contratado do mês";
+    else if (difMidiaMes < 0)
+      checaMidiaMes = `\n⚠️ Faltam ${fmtBRL(Math.abs(difMidiaMes))} de vendas sem origem de mídia (Mídia ${fmtBRL(valorMidiaMes)} x Contratado ${fmtBRL(c.acumulado)})`;
+    else
+      checaMidiaMes = `\n⚠️ Mídia ${fmtBRL(valorMidiaMes)} acima do Contratado ${fmtBRL(c.acumulado)} — confira (diferença ${fmtBRL(difMidiaMes)})`;
+  }
   const midiaTxt =
     topMidia.length === 0
       ? "Sem registros de mídia no mês"
       : topMidia.map((m) => `• ${m.nome}: ${m.qtd} clientes`).join("\n") +
-        `\nTotal: ${totalMidia} clientes em mídia`;
+        `\nTotal: ${totalMidia} clientes em mídia${checaMidiaMes}`;
 
   // Orçamentos
   const orcTxt =
