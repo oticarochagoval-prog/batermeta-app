@@ -36,10 +36,20 @@ export function montaMsg(loja, lancamentos, midias, orcamentos, periodoAlvo) {
   };
 
   const linha = (x, cat) => {
+    // fix6.2: crédito/débito = acumulado − META CHEIA. Passou=crédito,
+    // faltou=débito. Mostra % atingida e % que falta.
+    const metaCheia = x.metas.meta;
+    const dif = x.acumulado - metaCheia;
     const cd =
-      x.diferenca >= 0
-        ? `Crédito ${fmtBRL(x.diferenca)}`
-        : `Débito ${fmtBRL(Math.abs(x.diferenca))}`;
+      dif >= 0
+        ? `Crédito ${fmtBRL(dif)}`
+        : `Débito ${fmtBRL(Math.abs(dif))}`;
+    const pctAtingida = metaCheia > 0 ? (x.acumulado / metaCheia) * 100 : 0;
+    const pctFalta = Math.max(0, 100 - pctAtingida);
+    const linhaPct =
+      pctFalta <= 0
+        ? `Atingido: ${pctAtingida.toFixed(1)}% — meta batida ✅`
+        : `Atingido: ${pctAtingida.toFixed(1)}% — falta ${pctFalta.toFixed(1)}%`;
     const va = valorNoAlvo(cat);
     const tk =
       va.q > 0
@@ -47,7 +57,7 @@ export function montaMsg(loja, lancamentos, midias, orcamentos, periodoAlvo) {
         : "";
     return `Vendido ${u}: ${fmtBRL(va.v)}${tk}\nAcumulado: ${fmtBRL(
       x.acumulado
-    )}\nMeta: ${x.pctMeta.toFixed(1)}% — ${cd}\nTicket médio do mês: ${
+    )}\nMeta: ${fmtBRL(metaCheia)} (${cd})\n${linhaPct}\nTicket médio do mês: ${
       x.qtdMes > 0 ? fmtBRL(x.ticketMes) : "—"
     }`;
   };
@@ -104,17 +114,27 @@ export function montaMsgMensal(
   const orc = calcOrc(loja, orcamentos);
 
   const linha = (x, nome) => {
+    // fix6.2: crédito/débito = acumulado − META CHEIA (não o esperado
+    // proporcional). Se passou da meta → crédito; se faltou → débito.
+    const metaCheia = x.metas.meta;
+    const dif = x.acumulado - metaCheia;
     const cd =
-      x.diferenca >= 0
-        ? `Crédito ${fmtBRL(x.diferenca)}`
-        : `Débito ${fmtBRL(Math.abs(x.diferenca))}`;
+      dif >= 0
+        ? `Crédito ${fmtBRL(dif)}`
+        : `Débito ${fmtBRL(Math.abs(dif))}`;
+    const pctAtingida = metaCheia > 0 ? (x.acumulado / metaCheia) * 100 : 0;
+    const pctFalta = Math.max(0, 100 - pctAtingida);
+    const linhaPct =
+      pctFalta <= 0
+        ? `Atingido: ${pctAtingida.toFixed(1)}% — meta batida ✅`
+        : `Atingido: ${pctAtingida.toFixed(1)}% — falta ${pctFalta.toFixed(1)}%`;
     const tk =
       x.qtdMes > 0
         ? `\nTicket médio: ${fmtBRL(x.ticketMes)} (${x.qtdMes} vendas)`
         : "\nSem vendas no mês";
     return `*${nome}*\nAcumulado: ${fmtBRL(
       x.acumulado
-    )}\nMeta: ${fmtBRL(x.metas.meta)} — ${x.pctMeta.toFixed(1)}% (${cd})${tk}`;
+    )}\nMeta: ${fmtBRL(metaCheia)} (${cd})\n${linhaPct}${tk}`;
   };
 
   // Mídia: top 5 origens por quantidade

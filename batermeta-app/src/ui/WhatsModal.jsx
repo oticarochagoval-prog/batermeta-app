@@ -41,19 +41,14 @@ export default function WhatsModal({
   const diario = loja.tipoPeriodo === "diario";
   const periodoHoje = diario ? CONFIG.hoje : `S${CONFIG.semanaAtual}`;
 
-  // Default da aba e do mês selecionado:
-  // Se hoje for dia 1-5, assume "fechar mês passado" e abre em "Mês".
-  const hoje = parseISO(CONFIG.hoje);
-  const ehInicioDeMes = hoje.getDate() <= 5;
-  const defaultMes = ehInicioDeMes
-    ? CONFIG.mes === 1
-      ? 12
-      : CONFIG.mes - 1
-    : CONFIG.mes;
-  const defaultAno =
-    ehInicioDeMes && CONFIG.mes === 1 ? CONFIG.ano - 1 : CONFIG.ano;
+  // fix6.2: o relatório abre SEMPRE no mês atual (aba "Dia" com hoje).
+  // Se o usuário quiser um mês fechado anterior, troca pra aba "Mês" e
+  // usa o seletor de mês. Antes, no início do mês (dia 1-5), abria
+  // direto no mês passado — o que confundia.
+  const defaultMes = CONFIG.mes;
+  const defaultAno = CONFIG.ano;
 
-  const [aba, setAba] = useState(ehInicioDeMes ? "mes" : "dia");
+  const [aba, setAba] = useState("dia");
 
   // Aba "Dia"
   const [alvo, setAlvo] = useState(periodoHoje);
