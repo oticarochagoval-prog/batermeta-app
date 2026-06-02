@@ -11,7 +11,7 @@ import { Ban, Check, Lock, Settings } from "lucide-react";
 import { CAT_COR, COLORS } from "../../lib/colors.js";
 import { fmtBRL } from "../../lib/format.js";
 import { CONFIG } from "../../lib/config.js";
-import { setMidiaLote, naoTeveMidia } from "../../lib/db.js";
+import { setMidiaLote, naoTeveMidia, buscarLancamento } from "../../lib/db.js";
 import { podeEditar } from "../../lib/janela_edicao.js";
 import { btn } from "../../ui/Field.jsx";
 import MoneyInput from "../../ui/MoneyInput.jsx";
@@ -26,11 +26,23 @@ export default function FormMidia({
   viaMaster,
   onSaved,
   onIrConfig,
+  mesView,
+  anoView,
 }) {
   const cor = CAT_COR.midia;
   const num = (v) => parseInt(String(v), 10) || 0;
-  const periodoHoje =
-    loja.tipoPeriodo === "diario" ? CONFIG.hoje : `S${CONFIG.semanaAtual}`;
+
+  // Default do período (todas as lojas são diárias):
+  // mês ATUAL → hoje; outro mês → último dia daquele mês.
+  const ehMesAtual =
+    !mesView || (mesView === CONFIG.mes && anoView === CONFIG.ano);
+  let periodoHoje;
+  if (ehMesAtual) {
+    periodoHoje = CONFIG.hoje;
+  } else {
+    const ultimoDia = new Date(anoView, mesView, 0).getDate();
+    periodoHoje = `${anoView}-${String(mesView).padStart(2, "0")}-${String(ultimoDia).padStart(2, "0")}`;
+  }
 
   const oriDaLoja = origens.filter((o) => o.lojaId === loja.id);
   const oriAtivas = oriDaLoja.filter((o) => o.ativa !== false);
@@ -123,13 +135,37 @@ export default function FormMidia({
     (s, l) => s + (l?.valor || 0),
     0
   );
-  const lancContratado = lancamentos.find(
-    (l) =>
-      l.lojaId === loja.id &&
-      l.periodo === mPeriodo &&
-      l.categoria === "contratado" &&
-      !l.naoTeve
-  );
+  // FIX (fix6.4 / Bug C na mídia): em vez de procurar o contratado no
+  // array `lancamentos` (que só tem o mês visualizado), busca direto no
+  // banco sempre que a data muda. Assim, ao editar uma data antiga, o
+  // "Contratado do dia" aparece certo — e não R$ 0 / "não foi lançado".
+  const [contratadoDiaDb, setContratadoDiaDb] = useState(null);
+  useEffect(() => {
+    let cancelado = false;
+    // chute imediato pelo array (evita piscar), depois confirma no banco
+    const noArray = lancamentos.find(
+      (l) =>
+        l.lojaId === loja.id &&
+        l.periodo === mPeriodo &&
+        l.categoria === "contratado" &&
+        !l.naoTeve
+    );
+    if (noArray) setContratadoDiaDb(noArray);
+    (async () => {
+      try {
+        const achado = await buscarLancamento(loja.id, mPeriodo, "contratado");
+        if (!cancelado) setContratadoDiaDb(achado && !achado.naoTeve ? achado : null);
+      } catch (e) {
+        if (!cancelado && !noArray) setContratadoDiaDb(null);
+      }
+    })();
+    return () => {
+      cancelado = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mPeriodo, loja.id]);
+
+  const lancContratado = contratadoDiaDb;
   const contratadoDia = lancContratado ? lancContratado.valor : 0;
   const temContratado = !!lancContratado;
   const diff = totalValor - contratadoDia;
