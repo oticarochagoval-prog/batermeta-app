@@ -14,7 +14,7 @@ import { fmtBRL, fmtCurto } from "../../lib/format.js";
 export default function RelVendas({ c, f }) {
   const [filtro, setFiltro] = useState("todos");
 
-  const FiltroCard = ({ id, k, v, cor }) => {
+  const FiltroCard = ({ id, k, v, cor, ticket, qtd }) => {
     const ativo = filtro === id;
     return (
       <Card
@@ -49,6 +49,20 @@ export default function RelVendas({ c, f }) {
         >
           {v}
         </div>
+        {/* FIX (01/06/2026 fix6): ticket médio embaixo do valor */}
+        {qtd > 0 && (
+          <div
+            style={{
+              fontSize: 10,
+              color: COLORS.muted,
+              marginTop: 3,
+              fontWeight: 600,
+            }}
+          >
+            TM: <b style={{ color: COLORS.fg }}>{fmtBRL(ticket)}</b>
+            <span style={{ opacity: 0.7 }}> · {qtd}{qtd === 1 ? " venda" : " vendas"}</span>
+          </div>
+        )}
       </Card>
     );
   };
@@ -85,6 +99,18 @@ export default function RelVendas({ c, f }) {
         {perLabel(l.periodo)}
         {l.qtdVendas ? ` · ${l.qtdVendas} vd` : ""}
       </div>
+      {!l.naoTeve && l.qtdVendas > 0 && (
+        <div
+          style={{
+            fontSize: 10,
+            color: COLORS.teal,
+            fontWeight: 700,
+            marginTop: 2,
+          }}
+        >
+          TM: {fmtBRL(l.valor / l.qtdVendas)}
+        </div>
+      )}
     </div>
   );
 
@@ -109,6 +135,29 @@ export default function RelVendas({ c, f }) {
       return { ...n, dif, credito, corDif };
     });
   };
+
+  const renderTMBloco = (calc, cor) => (
+    <div
+      style={{
+        padding: "7px 10px",
+        borderBottom: `1px solid ${COLORS.border}`,
+        background: "#EEF2FF",
+        fontSize: 11,
+        fontWeight: 700,
+        color: cor,
+        textAlign: "center",
+      }}
+    >
+      TM: <b style={{ fontWeight: 800 }}>
+        {calc.qtdMes > 0 ? fmtBRL(calc.ticketMes) : "—"}
+      </b>
+      {calc.qtdMes > 0 && (
+        <span style={{ color: COLORS.muted, fontWeight: 600 }}>
+          {" "}· {calc.qtdMes} vd
+        </span>
+      )}
+    </div>
+  );
 
   const renderResumo = (calc) => (
     <div
@@ -170,12 +219,16 @@ export default function RelVendas({ c, f }) {
           k="Contratado"
           v={fmtBRL(c.acumulado)}
           cor={COLORS.roxo}
+          ticket={c.ticketMes}
+          qtd={c.qtdMes}
         />
         <FiltroCard
           id="faturado"
           k="Faturado"
           v={fmtBRL(f.acumulado)}
           cor={COLORS.primary}
+          ticket={f.ticketMes}
+          qtd={f.qtdMes}
         />
       </div>
       <div
@@ -231,6 +284,7 @@ export default function RelVendas({ c, f }) {
                 {titulo}
               </div>
               {renderResumo(calc)}
+              {renderTMBloco(calc, cor)}
               <div>
                 {lista.length === 0 && (
                   <div
@@ -270,6 +324,10 @@ export default function RelVendas({ c, f }) {
             {filtro === "contratado" ? "Contratado" : "Faturado"}
           </div>
           {renderResumo(filtro === "contratado" ? c : f)}
+          {renderTMBloco(
+            filtro === "contratado" ? c : f,
+            filtro === "contratado" ? COLORS.roxo : COLORS.primary
+          )}
           <div>
             {(filtro === "contratado" ? todasC : todasF)
               .slice(0, 30)

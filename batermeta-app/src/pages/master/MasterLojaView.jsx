@@ -10,10 +10,11 @@
 // o master consegue ajustar tudo.
 
 import React, { useCallback, useEffect, useState } from "react";
-import { Pencil } from "lucide-react";
+import { Pencil, ChevronLeft, ChevronRight } from "lucide-react";
 import { Header } from "../../ui/components.jsx";
 import { COLORS } from "../../lib/colors.js";
 import { CONFIG } from "../../lib/config.js";
+import { MES } from "../../lib/format.js";
 import {
   listarAbordadores,
   listarLancamentos,
@@ -44,6 +45,19 @@ export default function MasterLojaView({
   const [novaSenha, setNovaSenha] = useState("");
   const [salvandoSenha, setSalvandoSenha] = useState(false);
 
+  // Clique num dia atrasado no Painel → abre Lançar já naquele dia.
+  const [periodoInicialLancar, setPeriodoInicialLancar] = useState(null);
+  const irLancarNoDia = (periodo) => {
+    setPeriodoInicialLancar(periodo);
+    setMtab("lancar");
+  };
+
+  // Mês/ano em visualização (igual ao gerente). Default = mês atual.
+  // Permite ao master ver/editar/lançar meses passados em todas as abas.
+  const [mesView, setMesView] = useState(CONFIG.mes);
+  const [anoView, setAnoView] = useState(CONFIG.ano);
+  const ehMesAtual = mesView === CONFIG.mes && anoView === CONFIG.ano;
+
   // Estado dos dados da loja escolhida
   const [lancamentos, setLancamentos] = useState([]);
   const [midias, setMidias] = useState([]);
@@ -55,10 +69,10 @@ export default function MasterLojaView({
   const recarregar = useCallback(async () => {
     try {
       const [l, m, o, a, ori] = await Promise.all([
-        listarLancamentos(loja.id, CONFIG.mes, CONFIG.ano),
-        listarMidias(loja.id, CONFIG.mes, CONFIG.ano),
-        listarOrcamentos(loja.id, CONFIG.mes, CONFIG.ano),
-        listarAbordadores(loja.id, CONFIG.mes, CONFIG.ano),
+        listarLancamentos(loja.id, mesView, anoView),
+        listarMidias(loja.id, mesView, anoView),
+        listarOrcamentos(loja.id, mesView, anoView),
+        listarAbordadores(loja.id, mesView, anoView),
         listarOrigens(loja.id),
       ]);
       setLancamentos(l);
@@ -69,7 +83,7 @@ export default function MasterLojaView({
     } catch (e) {
       console.error(e);
     }
-  }, [loja.id]);
+  }, [loja.id, mesView, anoView]);
 
   // Usado quando master edita Metas/Origens. Recarrega lojas (pra
   // refletir metas novas) e dados da loja atual.
@@ -111,6 +125,43 @@ export default function MasterLojaView({
     ["cfg", "Config"],
     ["senha", "Senha"],
   ];
+
+  // ----- Navegação de mês (igual ao gerente) -----
+  const irMesAnterior = () => {
+    let m = mesView - 1;
+    let a = anoView;
+    if (m < 1) { m = 12; a -= 1; }
+    setMesView(m);
+    setAnoView(a);
+  };
+  const irMesPosterior = () => {
+    let m = mesView + 1;
+    let a = anoView;
+    if (m > 12) { m = 1; a += 1; }
+    setMesView(m);
+    setAnoView(a);
+  };
+  const voltarHoje = () => {
+    setMesView(CONFIG.mes);
+    setAnoView(CONFIG.ano);
+  };
+  const limiteFuturo = (() => {
+    const proxMes = CONFIG.mes === 12 ? 1 : CONFIG.mes + 1;
+    const proxAno = CONFIG.mes === 12 ? CONFIG.ano + 1 : CONFIG.ano;
+    return mesView === proxMes && anoView === proxAno;
+  })();
+  const limitePassado = (() => {
+    const dHoje = new Date(CONFIG.ano, CONFIG.mes - 1, 1);
+    const dView = new Date(anoView, mesView - 1, 1);
+    const diff =
+      (dHoje.getFullYear() - dView.getFullYear()) * 12 +
+      (dHoje.getMonth() - dView.getMonth());
+    return diff >= 12;
+  })();
+
+  // As abas Config e Senha não dependem de mês — só mostram o seletor
+  // nas abas que mexem com dados do período.
+  const mostraSeletor = mtab === "painel" || mtab === "lancar" || mtab === "rel";
 
   return (
     <>
@@ -165,7 +216,10 @@ export default function MasterLojaView({
           {mtabs.map(([k, lbl]) => (
             <button
               key={k}
-              onClick={() => setMtab(k)}
+              onClick={() => {
+                setPeriodoInicialLancar(null);
+                setMtab(k);
+              }}
               style={{
                 flex: "0 0 auto",
                 padding: "7px 14px",
@@ -183,6 +237,95 @@ export default function MasterLojaView({
           ))}
         </div>
       </div>
+
+      {mostraSeletor && (
+        <div
+          style={{
+            background: ehMesAtual ? "#fff" : "#FEF3C7",
+            borderBottom: `1px solid ${ehMesAtual ? COLORS.border : "#FDE68A"}`,
+            padding: "10px 14px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 8,
+          }}
+        >
+          <button
+            onClick={irMesAnterior}
+            disabled={limitePassado}
+            style={{
+              background: "transparent",
+              border: "none",
+              padding: 5,
+              cursor: limitePassado ? "default" : "pointer",
+              opacity: limitePassado ? 0.3 : 1,
+              color: COLORS.fg,
+              display: "flex",
+              alignItems: "center",
+            }}
+            aria-label="Mês anterior"
+          >
+            <ChevronLeft size={20} />
+          </button>
+          <div style={{ textAlign: "center", flex: 1, minWidth: 0 }}>
+            <div
+              style={{
+                fontSize: 10.5,
+                fontWeight: 700,
+                color: ehMesAtual ? COLORS.muted : "#92400E",
+                letterSpacing: 0.5,
+              }}
+            >
+              {ehMesAtual ? "VENDO MÊS ATUAL" : "VENDO MÊS PASSADO"}
+            </div>
+            <div
+              style={{
+                fontSize: 15,
+                fontWeight: 800,
+                fontFamily: "Sora",
+                color: ehMesAtual ? COLORS.fg : "#92400E",
+              }}
+            >
+              {MES[mesView - 1]} / {anoView}
+            </div>
+            {!ehMesAtual && (
+              <button
+                onClick={voltarHoje}
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  color: COLORS.primary,
+                  fontSize: 11,
+                  fontWeight: 700,
+                  textDecoration: "underline",
+                  cursor: "pointer",
+                  marginTop: 2,
+                  padding: 0,
+                }}
+              >
+                voltar pro mês atual
+              </button>
+            )}
+          </div>
+          <button
+            onClick={irMesPosterior}
+            disabled={limiteFuturo}
+            style={{
+              background: "transparent",
+              border: "none",
+              padding: 5,
+              cursor: limiteFuturo ? "default" : "pointer",
+              opacity: limiteFuturo ? 0.3 : 1,
+              color: COLORS.fg,
+              display: "flex",
+              alignItems: "center",
+            }}
+            aria-label="Mês posterior"
+          >
+            <ChevronRight size={20} />
+          </button>
+        </div>
+      )}
       <div style={{ flex: 1, overflowY: "auto" }}>
         {loading ? (
           <div
@@ -205,6 +348,10 @@ export default function MasterLojaView({
                 orcamentos={orcamentos}
                 onWhats={() => setWhats(true)}
                 onIrLancar={() => setMtab("lancar")}
+                onIrLancarDia={irLancarNoDia}
+                mesView={mesView}
+                anoView={anoView}
+                ehMesAtual={ehMesAtual}
               />
             )}
             {mtab === "lancar" && (
@@ -235,6 +382,9 @@ export default function MasterLojaView({
                   abordadores={abordadores}
                   viaMaster={true}
                   onSaved={recarregar}
+                  mesView={mesView}
+                  anoView={anoView}
+                  periodoInicial={periodoInicialLancar}
                 />
               </>
             )}
@@ -246,6 +396,8 @@ export default function MasterLojaView({
                 orcamentos={orcamentos}
                 origens={origens}
                 abordadores={abordadores}
+                mesView={mesView}
+                anoView={anoView}
               />
             )}
             {mtab === "cfg" && (

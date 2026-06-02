@@ -11,11 +11,11 @@ import { Send, Trophy } from "lucide-react";
 import { COLORS } from "../lib/colors.js";
 import { fmtBRL, fmtCurto, MES } from "../lib/format.js";
 import { CONFIG } from "../lib/config.js";
-import { calcMeta, statusDia } from "../lib/calc.js";
+import { calcMeta, statusDia, diasAtrasados } from "../lib/calc.js";
 import {
   Card,
   BlocoMeta,
-  AvisoIncompleto,
+  AvisoAtrasados,
 } from "../ui/components.jsx";
 
 export default function Dashboard({
@@ -25,22 +25,34 @@ export default function Dashboard({
   orcamentos,
   onWhats,
   onIrLancar,
+  onIrLancarDia,
+  mesView,
+  anoView,
+  ehMesAtual = true,
 }) {
+  // viewCtx: passa pro calcMeta saber se está em mês passado.
+  const viewCtx = { ehMesAtual };
   const c = useMemo(
-    () => calcMeta(loja, "contratado", lancamentos),
-    [loja, lancamentos]
+    () => calcMeta(loja, "contratado", lancamentos, viewCtx),
+    [loja, lancamentos, ehMesAtual]
   );
   const f = useMemo(
-    () => calcMeta(loja, "faturado", lancamentos),
-    [loja, lancamentos]
+    () => calcMeta(loja, "faturado", lancamentos, viewCtx),
+    [loja, lancamentos, ehMesAtual]
   );
   const periodoHoje =
     loja.tipoPeriodo === "diario" ? CONFIG.hoje : `S${CONFIG.semanaAtual}`;
   const status = statusDia(loja, periodoHoje, lancamentos, midias, orcamentos);
+  // FIX (fix6.1): em vez de cobrar o dia de hoje (que ainda não acabou),
+  // lista os dias úteis anteriores que ficaram sem lançar.
+  const atrasados = diasAtrasados(
+    loja,
+    lancamentos,
+    midias,
+    orcamentos,
+    ehMesAtual
+  );
   // FIX (27/05/2026): o "destaque do dia" mostra APENAS o Faturado.
-  // Antes: somava Contratado + Faturado, mas eles são conceitos
-  // distintos (vendido vs. entregue/faturado) — somar dá um número
-  // que não significa nada. Faturado é o que vira dinheiro de fato.
   const totalHoje = f.vendidoHoje;
   const totalMes = f.acumulado;
   const periodoLabel =
@@ -48,7 +60,9 @@ export default function Dashboard({
       ? "O dia de hoje"
       : `A semana ${CONFIG.semanaAtual}`;
   const movLabel =
-    loja.tipoPeriodo === "diario"
+    !ehMesAtual
+      ? `${MES[mesView - 1]}/${anoView} — fechado`
+      : loja.tipoPeriodo === "diario"
       ? `FATURADO HOJE — ${fmtCurto(CONFIG.hoje)}`
       : `FATURADO — Semana ${CONFIG.semanaAtual}`;
 
@@ -69,11 +83,13 @@ export default function Dashboard({
 
   return (
     <div style={{ padding: 16 }}>
-      <AvisoIncompleto
-        status={status}
-        onIr={onIrLancar}
-        periodoLabel={periodoLabel}
-      />
+      {/* Aviso de pendência só faz sentido no MÊS ATUAL */}
+      {ehMesAtual && (
+        <AvisoAtrasados
+          dias={atrasados}
+          onLancarDia={onIrLancarDia || (() => onIrLancar && onIrLancar())}
+        />
+      )}
 
       <Card
         style={{
@@ -94,16 +110,31 @@ export default function Dashboard({
         >
           {movLabel}
         </div>
-        <div
-          style={{
-            fontSize: 30,
-            fontWeight: 800,
-            fontFamily: "Sora",
-            margin: "2px 0 12px",
-          }}
-        >
-          {fmtBRL(totalHoje)}
-        </div>
+        {ehMesAtual && (
+          <div
+            style={{
+              fontSize: 30,
+              fontWeight: 800,
+              fontFamily: "Sora",
+              margin: "2px 0 12px",
+            }}
+          >
+            {fmtBRL(totalHoje)}
+          </div>
+        )}
+        {!ehMesAtual && (
+          <div
+            style={{
+              fontSize: 30,
+              fontWeight: 800,
+              fontFamily: "Sora",
+              margin: "2px 0 12px",
+            }}
+          >
+            {fmtBRL(totalMes)}
+          </div>
+        )}
+        {ehMesAtual && (
         <div className="flex gap-2">
           {[
             ["Contratado", c.vendidoHoje, c.acumulado, c.ticketMes, c.qtdMes],
@@ -194,6 +225,7 @@ export default function Dashboard({
             </div>
           ))}
         </div>
+        )}
         <button
           onClick={onWhats}
           style={{

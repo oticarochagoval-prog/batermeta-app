@@ -24,17 +24,21 @@ export default function FormVenda({
   onSaved,
   mesView,
   anoView,
+  periodoInicial,
 }) {
   const cor = CAT_COR[modo];
   const num = (v) => parseInt(String(v), 10) || 0;
 
   // Default do período (todas as lojas são diárias):
+  // - se veio periodoInicial (clique num dia atrasado) → usa ele
   // - mês ATUAL → "hoje"
   // - outro mês → último dia desse mês
   const ehMesAtual =
     !mesView || (mesView === CONFIG.mes && anoView === CONFIG.ano);
   let periodoHoje;
-  if (ehMesAtual) {
+  if (periodoInicial) {
+    periodoHoje = periodoInicial;
+  } else if (ehMesAtual) {
     periodoHoje = CONFIG.hoje;
   } else {
     const ultimoDia = new Date(anoView, mesView, 0).getDate();

@@ -1,9 +1,16 @@
 // LojaApp — shell do gerente da loja.
-// Etapa 3: agora todas as 4 abas (Início, Lançar, Relatórios, Config)
-// são telas reais. Refresh automático após salvar.
+//
+// FIX (01/06/2026 - fix6): adicionado SELETOR DE MÊS.
+// Antes: sistema carregava só CONFIG.mes/CONFIG.ano (mês corrente).
+// Agora: cada loja tem um estado próprio (mesView, anoView). Quando
+// vira o mês, gerente consegue voltar pra ver/lançar dados do mês
+// anterior sem o master precisar entrar.
+//
+// O seletor aparece em cima das telas (abaixo do header). Default =
+// mês corrente. Botão "← Maio" e "Junho →" pra navegar entre meses.
 
 import React, { useCallback, useEffect, useState } from "react";
-import { Home, Plus, BarChart3, Settings } from "lucide-react";
+import { Home, Plus, BarChart3, Settings, ChevronLeft, ChevronRight } from "lucide-react";
 import { Header, TabBar } from "../ui/components.jsx";
 import Dashboard from "./Dashboard.jsx";
 import Lancar from "./Lancar.jsx";
@@ -11,7 +18,7 @@ import Relatorios from "./Relatorios.jsx";
 import ConfigLoja from "./ConfigLoja.jsx";
 import WhatsModal from "../ui/WhatsModal.jsx";
 import { CONFIG } from "../lib/config.js";
-import { fmtExtenso } from "../lib/format.js";
+import { fmtExtenso, MES } from "../lib/format.js";
 import { COLORS } from "../lib/colors.js";
 import {
   listarAbordadores,
@@ -35,6 +42,19 @@ export default function LojaApp({
   onLojaAtualizada,
 }) {
   const [tab, setTab] = useState("home");
+
+  // Quando o gerente clica num dia atrasado no Painel, guardamos o
+  // período aqui e trocamos pra aba Lançar já naquele dia.
+  const [periodoInicialLancar, setPeriodoInicialLancar] = useState(null);
+  const irLancarNoDia = (periodo) => {
+    setPeriodoInicialLancar(periodo);
+    setTab("lancar");
+  };
+
+  // Mês/ano em visualização. Default = mês corrente.
+  const [mesView, setMesView] = useState(CONFIG.mes);
+  const [anoView, setAnoView] = useState(CONFIG.ano);
+
   const [lancamentos, setLancamentos] = useState([]);
   const [midias, setMidias] = useState([]);
   const [orcamentos, setOrcamentos] = useState([]);
@@ -44,14 +64,16 @@ export default function LojaApp({
   const [erro, setErro] = useState("");
   const [whats, setWhats] = useState(false);
 
+  const ehMesAtual = mesView === CONFIG.mes && anoView === CONFIG.ano;
+
   const recarregar = useCallback(async () => {
     setErro("");
     try {
       const [l, m, o, a, ori] = await Promise.all([
-        listarLancamentos(loja.id, CONFIG.mes, CONFIG.ano),
-        listarMidias(loja.id, CONFIG.mes, CONFIG.ano),
-        listarOrcamentos(loja.id, CONFIG.mes, CONFIG.ano),
-        listarAbordadores(loja.id, CONFIG.mes, CONFIG.ano),
+        listarLancamentos(loja.id, mesView, anoView),
+        listarMidias(loja.id, mesView, anoView),
+        listarOrcamentos(loja.id, mesView, anoView),
+        listarAbordadores(loja.id, mesView, anoView),
         listarOrigens(loja.id),
       ]);
       setLancamentos(l);
@@ -59,7 +81,6 @@ export default function LojaApp({
       setOrcamentos(o);
       setAbordadores(a);
       setOrigens(ori);
-      // Também recarrega a loja em si — pode ter mudado as metas
       if (onLojaAtualizada) onLojaAtualizada();
     } catch (e) {
       // eslint-disable-next-line no-console
@@ -68,7 +89,7 @@ export default function LojaApp({
         "Não foi possível carregar os dados. Verifique a conexão com o Supabase."
       );
     }
-  }, [loja.id, onLojaAtualizada]);
+  }, [loja.id, mesView, anoView, onLojaAtualizada]);
 
   useEffect(() => {
     let cancelado = false;
@@ -81,7 +102,142 @@ export default function LojaApp({
       cancelado = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loja.id]);
+  }, [loja.id, mesView, anoView]);
+
+  // Navegação de mês
+  const irMesAnterior = () => {
+    let m = mesView - 1;
+    let a = anoView;
+    if (m < 1) {
+      m = 12;
+      a -= 1;
+    }
+    setMesView(m);
+    setAnoView(a);
+  };
+  const irMesPosterior = () => {
+    let m = mesView + 1;
+    let a = anoView;
+    if (m > 12) {
+      m = 1;
+      a += 1;
+    }
+    setMesView(m);
+    setAnoView(a);
+  };
+  const voltarHoje = () => {
+    setMesView(CONFIG.mes);
+    setAnoView(CONFIG.ano);
+  };
+
+  // Não deixa navegar pra meses muito no futuro (>1 mês à frente do atual)
+  const limiteFuturo = (() => {
+    const hojeMes = CONFIG.mes;
+    const hojeAno = CONFIG.ano;
+    const proxMes = hojeMes === 12 ? 1 : hojeMes + 1;
+    const proxAno = hojeMes === 12 ? hojeAno + 1 : hojeAno;
+    return mesView === proxMes && anoView === proxAno;
+  })();
+
+  // Limite passado: 12 meses pra trás é razoável
+  const limitePassado = (() => {
+    const dHoje = new Date(CONFIG.ano, CONFIG.mes - 1, 1);
+    const dView = new Date(anoView, mesView - 1, 1);
+    const diffMeses =
+      (dHoje.getFullYear() - dView.getFullYear()) * 12 +
+      (dHoje.getMonth() - dView.getMonth());
+    return diffMeses >= 12;
+  })();
+
+  // Banner do seletor de mês
+  const seletorMes = (
+    <div
+      style={{
+        background: ehMesAtual ? "#fff" : "#FEF3C7",
+        borderBottom: `1px solid ${ehMesAtual ? COLORS.border : "#FDE68A"}`,
+        padding: "10px 14px",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: 8,
+      }}
+    >
+      <button
+        onClick={irMesAnterior}
+        disabled={limitePassado}
+        style={{
+          background: "transparent",
+          border: "none",
+          padding: 5,
+          cursor: limitePassado ? "default" : "pointer",
+          opacity: limitePassado ? 0.3 : 1,
+          color: COLORS.fg,
+          display: "flex",
+          alignItems: "center",
+        }}
+        aria-label="Mês anterior"
+      >
+        <ChevronLeft size={20} />
+      </button>
+      <div style={{ textAlign: "center", flex: 1, minWidth: 0 }}>
+        <div
+          style={{
+            fontSize: 10.5,
+            fontWeight: 700,
+            color: ehMesAtual ? COLORS.muted : "#92400E",
+            letterSpacing: 0.5,
+          }}
+        >
+          {ehMesAtual ? "VENDO MÊS ATUAL" : "VENDO MÊS PASSADO"}
+        </div>
+        <div
+          style={{
+            fontSize: 15,
+            fontWeight: 800,
+            fontFamily: "Sora",
+            color: ehMesAtual ? COLORS.fg : "#92400E",
+          }}
+        >
+          {MES[mesView - 1]} / {anoView}
+        </div>
+        {!ehMesAtual && (
+          <button
+            onClick={voltarHoje}
+            style={{
+              background: "transparent",
+              border: "none",
+              color: COLORS.primary,
+              fontSize: 11,
+              fontWeight: 700,
+              textDecoration: "underline",
+              cursor: "pointer",
+              marginTop: 2,
+              padding: 0,
+            }}
+          >
+            voltar pro mês atual
+          </button>
+        )}
+      </div>
+      <button
+        onClick={irMesPosterior}
+        disabled={limiteFuturo}
+        style={{
+          background: "transparent",
+          border: "none",
+          padding: 5,
+          cursor: limiteFuturo ? "default" : "pointer",
+          opacity: limiteFuturo ? 0.3 : 1,
+          color: COLORS.fg,
+          display: "flex",
+          alignItems: "center",
+        }}
+        aria-label="Mês posterior"
+      >
+        <ChevronRight size={20} />
+      </button>
+    </div>
+  );
 
   return (
     <>
@@ -90,6 +246,7 @@ export default function LojaApp({
         sub={fmtExtenso(CONFIG.hoje)}
         onSair={onSair}
       />
+      {seletorMes}
       <div style={{ flex: 1, overflowY: "auto" }}>
         {loading ? (
           <div
@@ -126,6 +283,10 @@ export default function LojaApp({
                 orcamentos={orcamentos}
                 onWhats={() => setWhats(true)}
                 onIrLancar={() => setTab("lancar")}
+                onIrLancarDia={irLancarNoDia}
+                mesView={mesView}
+                anoView={anoView}
+                ehMesAtual={ehMesAtual}
               />
             )}
             {tab === "lancar" && (
@@ -139,6 +300,9 @@ export default function LojaApp({
                 viaMaster={viaMaster}
                 onSaved={recarregar}
                 onIrConfig={() => setTab("cfg")}
+                mesView={mesView}
+                anoView={anoView}
+                periodoInicial={periodoInicialLancar}
               />
             )}
             {tab === "rel" && (
@@ -149,6 +313,8 @@ export default function LojaApp({
                 orcamentos={orcamentos}
                 origens={origens}
                 abordadores={abordadores}
+                mesView={mesView}
+                anoView={anoView}
               />
             )}
             {tab === "cfg" && (
@@ -161,7 +327,16 @@ export default function LojaApp({
           </>
         )}
       </div>
-      <TabBar tabs={TABS} active={tab} onChange={setTab} />
+      <TabBar
+        tabs={TABS}
+        active={tab}
+        onChange={(t) => {
+          // Trocar de aba pela barra inferior limpa o "dia atrasado"
+          // pendente, pra não grudar numa data antiga sem querer.
+          setPeriodoInicialLancar(null);
+          setTab(t);
+        }}
+      />
       {whats && (
         <WhatsModal
           loja={loja}

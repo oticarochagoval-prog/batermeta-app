@@ -26,16 +26,32 @@ export default function Lancar({
   viaMaster,
   onSaved,
   onIrConfig,
+  mesView,
+  anoView,
+  periodoInicial,
 }) {
   const [modo, setModo] = useState("contratado");
 
-  const MODOS = [
-    "contratado",
-    "faturado",
-    "midia",
-    "orcamento",
-    ...(loja.metaAbordador > 0 ? ["abordador"] : []),
-  ];
+  const ehMesAtual =
+    !mesView || (mesView === CONFIG.mes && anoView === CONFIG.ano);
+
+  // No mês ATUAL, todas as opções aparecem.
+  // Em mês PASSADO, só Venda e Mídia (orçamento e abordador são
+  // ações "do dia de hoje" e não fazem sentido lançar retroativamente).
+  const MODOS = ehMesAtual
+    ? [
+        "contratado",
+        "faturado",
+        "midia",
+        "orcamento",
+        ...(loja.metaAbordador > 0 ? ["abordador"] : []),
+      ]
+    : ["contratado", "faturado", "midia"];
+
+  // Se trocou pra mês passado estando em aba bloqueada, volta pra contratado
+  if (!ehMesAtual && (modo === "orcamento" || modo === "abordador")) {
+    setTimeout(() => setModo("contratado"), 0);
+  }
 
   return (
     <div style={{ padding: 16 }}>
@@ -115,6 +131,9 @@ export default function Lancar({
           permitirFuturo={viaMaster}
           viaMaster={viaMaster}
           onSaved={onSaved}
+          mesView={mesView}
+          anoView={anoView}
+          periodoInicial={periodoInicial}
         />
       )}
       {modo === "midia" && (
@@ -127,6 +146,8 @@ export default function Lancar({
           viaMaster={viaMaster}
           onSaved={onSaved}
           onIrConfig={onIrConfig}
+          mesView={mesView}
+          anoView={anoView}
         />
       )}
       {modo === "orcamento" && (

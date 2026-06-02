@@ -15,6 +15,7 @@ import {
   AlertTriangle,
   Plus,
   Sparkles,
+  CheckCircle2,
 } from "lucide-react";
 import { COLORS, CAT_LABEL } from "../lib/colors.js";
 import { fmtBRL } from "../lib/format.js";
@@ -416,6 +417,108 @@ export function AvisoIncompleto({ status, onIr, periodoLabel }) {
             <Plus size={14} /> Ir para Lançar
           </button>
         </div>
+      </div>
+    </Card>
+  );
+}
+
+export function AvisoAtrasados({ dias, onLancarDia }) {
+  // Sem atraso → aviso verde "tudo em dia".
+  if (!dias || dias.length === 0) {
+    return (
+      <Card
+        style={{
+          background: "#F0FDF4",
+          border: "1px solid #BBF7D0",
+          padding: 14,
+          marginBottom: 14,
+        }}
+      >
+        <div className="flex items-center gap-2">
+          <CheckCircle2 size={18} color={COLORS.success} style={{ flexShrink: 0 }} />
+          <div>
+            <div style={{ fontWeight: 700, fontSize: 13, color: "#15803D" }}>
+              Tudo em dia!
+            </div>
+            <div style={{ fontSize: 12, color: "#16A34A", marginTop: 1 }}>
+              Nenhum dia útil (seg–sex) atrasado neste mês.
+            </div>
+          </div>
+        </div>
+      </Card>
+    );
+  }
+  return (
+    <Card
+      style={{
+        background: "#FFFBEB",
+        border: "1px solid #FDE68A",
+        padding: 14,
+        marginBottom: 14,
+      }}
+    >
+      <div className="flex items-start gap-2" style={{ marginBottom: 4 }}>
+        <AlertTriangle
+          size={18}
+          color={COLORS.warning}
+          style={{ marginTop: 1, flexShrink: 0 }}
+        />
+        <div>
+          <div style={{ fontWeight: 700, fontSize: 13, color: "#92400E" }}>
+            {dias.length === 1
+              ? "1 dia útil sem lançar"
+              : `${dias.length} dias úteis sem lançar`}
+          </div>
+          <div style={{ fontSize: 11.5, color: "#B45309", marginTop: 2 }}>
+            O dia de hoje não conta (ainda não acabou). Toque pra lançar cada dia:
+          </div>
+        </div>
+      </div>
+      <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 7 }}>
+        {dias.map((d) => (
+          <div
+            key={d.periodo}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 8,
+              background: "#fff",
+              border: "1px solid #FDE68A",
+              borderRadius: 10,
+              padding: "8px 10px",
+            }}
+          >
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontWeight: 800, fontSize: 13, color: "#92400E" }}>
+                {d.label}
+              </div>
+              <div style={{ fontSize: 10.5, color: COLORS.warning, marginTop: 1 }}>
+                Falta: {d.faltam.map((k) => CAT_LABEL[k]).join(", ")}
+              </div>
+            </div>
+            <button
+              onClick={() => onLancarDia && onLancarDia(d.periodo)}
+              style={{
+                background: COLORS.warning,
+                color: "#fff",
+                border: "none",
+                borderRadius: 9,
+                padding: "8px 12px",
+                fontWeight: 700,
+                fontSize: 12,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: 5,
+                whiteSpace: "nowrap",
+                flexShrink: 0,
+              }}
+            >
+              <Plus size={13} /> Lançar
+            </button>
+          </div>
+        ))}
       </div>
     </Card>
   );

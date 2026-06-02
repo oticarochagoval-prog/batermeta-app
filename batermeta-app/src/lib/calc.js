@@ -3,30 +3,55 @@
 
 import { CONFIG } from "./config.js";
 import { COLORS } from "./colors.js";
+import { pad, parseISO, fmtCurto } from "./format.js";
 
-export function calcMeta(loja, categoria, lancamentos) {
+/**
+ * Calcula KPIs de uma loja+categoria pro mês em visualização.
+ *
+ * @param loja          objeto loja
+ * @param categoria     "contratado" | "faturado"
+ * @param lancamentos   lançamentos já filtrados pelo mês
+ * @param viewCtx       (opcional) — pra quando exibe MÊS DIFERENTE do atual.
+ *                      { ehMesAtual, diasUteisDecorridos }
+ *                      Se omitido, comportamento clássico (assume mês atual).
+ *
+ * Quando ehMesAtual=false (vendo mês passado), o "decorridos" vira o
+ * mês inteiro — afinal, o mês já terminou. Sem isso, o cálculo de meta
+ * acumulada ficaria projetando "esperado até o dia X" pra um mês que
+ * já fechou.
+ */
+export function calcMeta(loja, categoria, lancamentos, viewCtx = null) {
   const m = loja.metas[categoria];
   const divisor =
     loja.tipoPeriodo === "diario" ? loja.diasUteis : loja.semanas;
-  // FIX (27/05/2026): decorridos NUNCA pode ser maior que divisor.
-  // Antes: se a loja configurava 20 dias úteis e o sistema contava 23
-  // (incluindo sábados), o "esperado" estourava acima da meta. Resultado:
-  // débito de R$ 109k em loja que tinha meta de R$ 100k. Capando em
-  // `divisor`, no fim do mês esperado = meta (comportamento correto).
-  const decorridosBrutos =
-    loja.tipoPeriodo === "diario"
-      ? CONFIG.diasUteisDecorridos
-      : CONFIG.semanaAtual;
+
+  // FIX (01/06/2026 - fix6): quando vendo mês PASSADO, esperado = meta cheia.
+  // Quando vendo mês atual, mantém lógica antiga (esperado proporcional).
+  const ehMesAtual = viewCtx ? viewCtx.ehMesAtual : true;
+  let decorridosBrutos;
+  if (!ehMesAtual) {
+    // Mês passado fechado: usa o divisor inteiro (esperado = meta cheia)
+    decorridosBrutos = divisor;
+  } else if (loja.tipoPeriodo === "diario") {
+    decorridosBrutos = CONFIG.diasUteisDecorridos;
+  } else {
+    decorridosBrutos = CONFIG.semanaAtual;
+  }
+  // decorridos NUNCA pode ser maior que divisor (cap fix 27/05/2026)
   const decorridos = Math.min(decorridosBrutos, divisor);
+
   const metaPeriodo = m.meta / divisor;
   const metaAcumulada = metaPeriodo * decorridos;
   const doMes = lancamentos.filter(
     (l) => l.lojaId === loja.id && l.categoria === categoria
   );
   const acumulado = doMes.reduce((s, l) => s + l.valor, 0);
+  // "Vendido hoje" só faz sentido pro mês atual; em mês passado, força 0.
   const periodoHoje =
     loja.tipoPeriodo === "diario" ? CONFIG.hoje : `S${CONFIG.semanaAtual}`;
-  const lancHoje = doMes.filter((l) => l.periodo === periodoHoje);
+  const lancHoje = ehMesAtual
+    ? doMes.filter((l) => l.periodo === periodoHoje)
+    : [];
   const vendidoHoje = lancHoje.reduce((s, l) => s + l.valor, 0);
   const qtdMes = doMes.reduce((s, l) => s + (l.qtdVendas || 0), 0);
   const qtdHoje = lancHoje.reduce((s, l) => s + (l.qtdVendas || 0), 0);
@@ -51,6 +76,7 @@ export function calcMeta(loja, categoria, lancamentos) {
     divisor,
     decorridos,
     unidade: loja.tipoPeriodo === "diario" ? "dia" : "semana",
+    ehMesAtual,
   };
 }
 
@@ -138,4 +164,35 @@ export function calcAbord(loja, abordadores) {
     taxa,
     pctMeta,
   };
+}
+
+// diasAtrasados — lista os dias ÚTEIS (segunda a sexta) do mês atual que
+// ficaram SEM lançamento completo, do dia 1 até ONTEM (hoje nunca entra,
+// porque o dia ainda não acabou).
+//
+// Regra acordada com Lucas (fix6.1):
+//   • Cobra só segunda a sexta. Sábado e domingo nunca aparecem
+//     (sábado é meio período, lançado junto com a segunda).
+//   • O dia de hoje nunca é cobrado.
+//   • Feriado: a loja lança "Não teve" — como há lançamento, não cobra.
+//   • Um dia conta como atrasado se faltar QUALQUER das 4 categorias
+//     (contratado, faturado, mídia, orçamento).
+//
+// Só roda no mês atual; em mês passado o master corrige pelo seletor.
+export function diasAtrasados(loja, lancamentos, midias, orcamentos, ehMesAtual = true) {
+  if (!ehMesAtual) return [];
+  const hoje = parseISO(CONFIG.hoje);
+  const diaHoje = hoje.getDate();
+  const out = [];
+  for (let d = 1; d < diaHoje; d++) {
+    const dt = new Date(CONFIG.ano, CONFIG.mes - 1, d);
+    const dow = dt.getDay(); // 0=dom, 6=sáb
+    if (dow === 0 || dow === 6) continue; // pula sábado e domingo
+    const periodo = `${CONFIG.ano}-${pad(CONFIG.mes)}-${pad(d)}`;
+    const st = statusDia(loja, periodo, lancamentos, midias, orcamentos);
+    if (!st.completo) {
+      out.push({ periodo, label: fmtCurto(periodo), faltam: st.faltam });
+    }
+  }
+  return out;
 }
