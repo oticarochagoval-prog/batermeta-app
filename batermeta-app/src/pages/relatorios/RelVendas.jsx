@@ -159,57 +159,73 @@ export default function RelVendas({ c, f }) {
     </div>
   );
 
-  const renderResumo = (calc) => (
-    <div
-      style={{
-        padding: "8px 10px",
-        borderBottom: `1px solid ${COLORS.border}`,
-        background: "#F8FAFC",
-      }}
-    >
-      {resumoMetas(calc).map((n) => (
+  const renderResumo = (calc) => {
+    // fix6.8: formato igual ao painel — só a Meta, com Meta/dia,
+    // Acumulado, Esperado e Débito/Crédito vs esperado.
+    const cd = calc.diferenca;
+    const credito = cd >= 0;
+    return (
+      <div
+        style={{
+          padding: "9px 11px",
+          borderBottom: `1px solid ${COLORS.border}`,
+          background: "#F8FAFC",
+        }}
+      >
         <div
-          key={n.nome}
           className="flex items-center justify-between"
-          style={{ marginBottom: 3 }}
+          style={{ marginBottom: 4 }}
         >
-          <span
-            style={{
-              fontSize: 10.5,
-              color: COLORS.muted,
-              fontWeight: 600,
-            }}
-          >
-            {n.nome}
+          <span style={{ fontSize: 11, color: COLORS.muted, fontWeight: 600 }}>
+            Meta {fmtBRL(calc.metas.meta)}
           </span>
           <span
             style={{
-              fontSize: 10.5,
+              fontSize: 12,
               fontWeight: 800,
-              color: n.corDif,
               fontFamily: "Sora",
-              display: "flex",
-              alignItems: "center",
-              gap: 3,
+              color: credito ? COLORS.success : COLORS.error,
             }}
           >
-            {n.credito ? <TrendingUp size={11} /> : <TrendingDown size={11} />}
-            {n.credito ? "+" : "−"}
-            {fmtBRL(Math.abs(n.dif)).replace("R$ ", "R$")}
-            <span
-              style={{
-                color: COLORS.muted,
-                fontWeight: 600,
-                marginLeft: 4,
-              }}
-            >
-              · {n.pct.toFixed(0)}%
-            </span>
+            {calc.pctMeta.toFixed(0)}%
           </span>
         </div>
-      ))}
-    </div>
-  );
+        <div
+          style={{
+            fontSize: 10.5,
+            color: COLORS.muted,
+            lineHeight: 1.5,
+            marginBottom: 3,
+          }}
+        >
+          Meta/dia {fmtBRL(calc.metaPeriodo)}
+          <br />
+          Acumulado {fmtBRL(calc.acumulado)}
+          <br />
+          Esperado {fmtBRL(calc.metaAcumulada)}
+        </div>
+        <div
+          style={{
+            fontSize: 12,
+            fontWeight: 800,
+            fontFamily: "Sora",
+            color: credito ? COLORS.success : COLORS.error,
+            display: "flex",
+            alignItems: "center",
+            gap: 3,
+          }}
+        >
+          {credito ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
+          {credito ? "Crédito " : "Débito "}
+          {fmtBRL(Math.abs(cd))}
+          <span style={{ color: COLORS.muted, fontWeight: 600, fontSize: 10 }}>
+            {" "}
+            vs esperado
+          </span>
+        </div>
+      </div>
+    );
+  };
 
   return (
     <>
