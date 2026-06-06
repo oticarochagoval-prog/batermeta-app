@@ -52,30 +52,29 @@ export function montaMsg(loja, lancamentos, midias, orcamentos, periodoAlvo) {
   };
 
   const linha = (x, cat) => {
-    // fix6.2: crédito/débito = acumulado − META CHEIA. Passou=crédito,
-    // faltou=débito. Mostra % atingida e % que falta.
-    const metaCheia = x.metas.meta;
-    const dif = x.acumulado - metaCheia;
+    // fix6.6: formato igual ao Painel — Meta/dia, Esperado até hoje,
+    // Acumulado e Débito/Crédito VS ESPERADO (não vs meta cheia).
+    // x.metaPeriodo = meta/dia · x.metaAcumulada = esperado até a data
+    // x.diferenca = acumulado − esperado
+    const dif = x.diferenca;
     const cd =
       dif >= 0
-        ? `Crédito ${fmtBRL(dif)}`
-        : `Débito ${fmtBRL(Math.abs(dif))}`;
-    const pctAtingida = metaCheia > 0 ? (x.acumulado / metaCheia) * 100 : 0;
-    const pctFalta = Math.max(0, 100 - pctAtingida);
-    const linhaPct =
-      pctFalta <= 0
-        ? `Atingido: ${pctAtingida.toFixed(1)}% — meta batida ✅`
-        : `Atingido: ${pctAtingida.toFixed(1)}% — falta ${pctFalta.toFixed(1)}%`;
+        ? `Crédito ${fmtBRL(dif)} (vs esperado)`
+        : `Débito ${fmtBRL(Math.abs(dif))} (vs esperado)`;
     const va = valorNoAlvo(cat);
     const tk =
       va.q > 0
         ? `\nTicket médio ${u}: ${fmtBRL(va.v / va.q)} (${va.q} vendas)`
         : "";
-    return `Vendido ${u}: ${fmtBRL(va.v)}${tk}\nAcumulado: ${fmtBRL(
-      x.acumulado
-    )}\nMeta: ${fmtBRL(metaCheia)} (${cd})\n${linhaPct}\nTicket médio do mês: ${
-      x.qtdMes > 0 ? fmtBRL(x.ticketMes) : "—"
-    }`;
+    return (
+      `Vendido ${u}: ${fmtBRL(va.v)}${tk}\n` +
+      `Meta/dia: ${fmtBRL(x.metaPeriodo)} · Esperado até hoje: ${fmtBRL(
+        x.metaAcumulada
+      )}\n` +
+      `Acumulado: ${fmtBRL(x.acumulado)}\n` +
+      `${cd}\n` +
+      `Ticket médio do mês: ${x.qtdMes > 0 ? fmtBRL(x.ticketMes) : "—"}`
+    );
   };
 
   const cabData = diario

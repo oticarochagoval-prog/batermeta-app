@@ -190,8 +190,11 @@ export function diasAtrasados(loja, lancamentos, midias, orcamentos, ehMesAtual 
     if (dow === 0 || dow === 6) continue; // pula sábado e domingo
     const periodo = `${CONFIG.ano}-${pad(CONFIG.mes)}-${pad(d)}`;
     const st = statusDia(loja, periodo, lancamentos, midias, orcamentos);
-    if (!st.completo) {
-      out.push({ periodo, label: fmtCurto(periodo), faltam: st.faltam });
+    // fix6.6: Orçamento NÃO é diário — não conta como pendência.
+    // O dia só é atrasado se faltar Contratado, Faturado ou Mídia.
+    const faltamReais = st.faltam.filter((k) => k !== "orcamento");
+    if (faltamReais.length > 0) {
+      out.push({ periodo, label: fmtCurto(periodo), faltam: faltamReais });
     }
   }
   return out;
