@@ -7,14 +7,30 @@
 // do mês todo (não só de um dia/semana específica).
 
 import { calcMeta, calcMidia, calcOrc } from "./calc.js";
-import { CONFIG } from "./config.js";
+import { CONFIG, diasUteisAteHoje } from "./config.js";
 import { fmtBRL, fmtCurto, fmtExtenso, MES } from "./format.js";
 
 export function montaMsg(loja, lancamentos, midias, orcamentos, periodoAlvo) {
-  const c = calcMeta(loja, "contratado", lancamentos);
-  const f = calcMeta(loja, "faturado", lancamentos);
   const diario = loja.tipoPeriodo === "diario";
   const alvo = periodoAlvo || (diario ? CONFIG.hoje : `S${CONFIG.semanaAtual}`);
+
+  // fix6.6.1: o "esperado até hoje" tem que ser proporcional aos dias
+  // úteis até a DATA DO RELATÓRIO (alvo), não até a data real de hoje.
+  // Sem isso, o relatório de um dia passado (ex: 03/06) usava os dias
+  // decorridos até hoje (ex: 6 dias) e inflava o esperado.
+  let viewCtx = null;
+  if (diario && /^\d{4}-\d{2}-\d{2}$/.test(alvo)) {
+    const [ay, am] = alvo.split("-").map((n) => parseInt(n, 10));
+    // só ajusta se o alvo for do mês/ano corrente (mês fechado usa meta cheia)
+    if (ay === CONFIG.ano && am === CONFIG.mes) {
+      viewCtx = {
+        ehMesAtual: true,
+        diasUteisDecorridos: diasUteisAteHoje(ay, am, alvo),
+      };
+    }
+  }
+  const c = calcMeta(loja, "contratado", lancamentos, viewCtx);
+  const f = calcMeta(loja, "faturado", lancamentos, viewCtx);
 
   const orcAlvo = orcamentos.find(
     (o) => o.lojaId === loja.id && o.dataChegou === alvo

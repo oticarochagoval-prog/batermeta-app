@@ -11,7 +11,7 @@ function hojeISO() {
   return toISO(new Date());
 }
 
-function diasUteisAteHoje(ano, mes /* 1-12 */, hojeISOStr) {
+export function diasUteisAteHoje(ano, mes /* 1-12 */, hojeISOStr) {
   // Conta dias úteis (segunda a sábado) do dia 1 até "hoje", inclusive.
   // Domingo fica de fora — mesma regra do protótipo (linhas 84-91).
   const hoje = parseISO(hojeISOStr);

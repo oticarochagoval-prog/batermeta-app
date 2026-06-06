@@ -423,19 +423,25 @@ export default function MasterHome({
               </div>
               <ProgressBar pct={pct} />
               <div
-                className="flex items-center justify-between"
-                style={{ marginTop: 8, fontSize: 11, color: COLORS.muted }}
+                style={{
+                  marginTop: 8,
+                  fontSize: 11,
+                  color: COLORS.muted,
+                  lineHeight: 1.5,
+                }}
               >
-                <span>Hoje {fmtBRL(totalHoje)}</span>
-                <span
-                  style={{
-                    color: cd >= 0 ? COLORS.success : COLORS.error,
-                    fontWeight: 700,
-                  }}
-                >
-                  {cd >= 0 ? "Crédito" : "Débito"}{" "}
-                  {fmtBRL(Math.abs(cd))}
-                </span>
+                Acumulado {fmtBRL(f.acumulado)} · Esperado{" "}
+                {fmtBRL(f.metaAcumulada)}
+              </div>
+              <div
+                style={{
+                  marginTop: 2,
+                  fontSize: 12,
+                  fontWeight: 700,
+                  color: cd >= 0 ? COLORS.success : COLORS.error,
+                }}
+              >
+                {cd >= 0 ? "↗ Crédito" : "↘ Débito"} {fmtBRL(Math.abs(cd))}
               </div>
             </div>
           </Card>

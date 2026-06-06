@@ -33,7 +33,12 @@ export function calcMeta(loja, categoria, lancamentos, viewCtx = null) {
     // Mês passado fechado: usa o divisor inteiro (esperado = meta cheia)
     decorridosBrutos = divisor;
   } else if (loja.tipoPeriodo === "diario") {
-    decorridosBrutos = CONFIG.diasUteisDecorridos;
+    // fix6.6.1: se veio diasUteisDecorridos no viewCtx (ex: relatório de
+    // um dia específico), usa ele; senão, os dias até hoje (data real).
+    decorridosBrutos =
+      viewCtx && typeof viewCtx.diasUteisDecorridos === "number"
+        ? viewCtx.diasUteisDecorridos
+        : CONFIG.diasUteisDecorridos;
   } else {
     decorridosBrutos = CONFIG.semanaAtual;
   }
