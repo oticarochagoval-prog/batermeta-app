@@ -75,8 +75,8 @@ export function montaMsg(loja, lancamentos, midias, orcamentos, periodoAlvo) {
     const dif = x.diferenca;
     const cd =
       dif >= 0
-        ? `Crédito ${fmtBRL(dif)} (vs esperado)`
-        : `Débito ${fmtBRL(Math.abs(dif))} (vs esperado)`;
+        ? `🟢 Crédito ${fmtBRL(dif)} (vs esperado)`
+        : `🔴 Débito ${fmtBRL(Math.abs(dif))} (vs esperado)`;
     const va = valorNoAlvo(cat);
     const tk =
       va.q > 0
@@ -151,8 +151,8 @@ export function montaMsgMensal(
     const dif = x.acumulado - metaCheia;
     const cd =
       dif >= 0
-        ? `Crédito ${fmtBRL(dif)}`
-        : `Débito ${fmtBRL(Math.abs(dif))}`;
+        ? `🟢 Crédito ${fmtBRL(dif)}`
+        : `🔴 Débito ${fmtBRL(Math.abs(dif))}`;
     const pctAtingida = metaCheia > 0 ? (x.acumulado / metaCheia) * 100 : 0;
     const pctFalta = Math.max(0, 100 - pctAtingida);
     const linhaPct =
