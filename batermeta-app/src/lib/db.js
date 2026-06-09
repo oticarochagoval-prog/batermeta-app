@@ -128,6 +128,7 @@ function mapMidia(row) {
     periodo: row.periodo,
     quantidade: Number(row.quantidade) || 0,
     valor: Number(row.valor) || 0,
+    duplicados: Number(row.duplicados) || 0,
     naoTeve: !!row.nao_teve,
   };
 }
@@ -300,6 +301,7 @@ export async function setMidiaLote(lojaId, periodo, itens) {
     origem_id: it.origemId,
     quantidade: it.quantidade,
     valor: it.valor,
+    duplicados: it.duplicados || 0,
     nao_teve: false,
   }));
 

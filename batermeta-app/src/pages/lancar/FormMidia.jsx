@@ -64,8 +64,8 @@ export default function FormMidia({
           !m.naoTeve
       );
       base[o.id] = ja
-        ? { qtd: String(ja.quantidade), valor: ja.valor }
-        : { qtd: "", valor: 0 };
+        ? { qtd: String(ja.quantidade), valor: ja.valor, dup: ja.duplicados || 0 }
+        : { qtd: "", valor: 0, dup: 0 };
     });
     setMLinhas(base);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -90,8 +90,9 @@ export default function FormMidia({
           origemId: o.id,
           quantidade: num(mLinhas[o.id]?.qtd),
           valor: mLinhas[o.id]?.valor || 0,
+          duplicados: num(mLinhas[o.id]?.dup),
         }))
-        .filter((it) => it.quantidade > 0);
+        .filter((it) => it.quantidade > 0 || it.duplicados > 0);
       await setMidiaLote(loja.id, mPeriodo, itens);
       setOk("salvo");
       setTimeout(() => setOk(""), 1800);
@@ -167,11 +168,30 @@ export default function FormMidia({
 
   const lancContratado = contratadoDiaDb;
   const contratadoDia = lancContratado ? lancContratado.valor : 0;
+  const contratadoQtd = lancContratado ? lancContratado.qtdVendas || 0 : 0;
   const temContratado = !!lancContratado;
+
+  // total de duplicados lançados (1 cliente que fez 2 OS = 1 duplicado)
+  const totalDup = Object.values(mLinhas).reduce((s, l) => s + num(l?.dup), 0);
+
+  // --- VALOR: soma da mídia tem que bater com o valor do contratado ---
   const diff = totalValor - contratadoDia;
-  const bateu = temContratado && Math.abs(diff) < 0.01;
-  const faltou = temContratado && diff < -0.01;
-  const sobrou = temContratado && diff > 0.01;
+  const valorBateu = temContratado && Math.abs(diff) < 0.01;
+  const valorFaltou = temContratado && diff < -0.01;
+  const valorSobrou = temContratado && diff > 0.01;
+
+  // --- QUANTIDADE: clientes + duplicados = nº de vendas do contratado ---
+  // (cada duplicado é uma OS a mais que o mesmo cliente fez)
+  const vendasMidia = totalQtd + totalDup;
+  const diffQtd = vendasMidia - contratadoQtd;
+  const qtdBateu = temContratado && diffQtd === 0;
+  const qtdFaltou = temContratado && diffQtd < 0;
+  const qtdSobrou = temContratado && diffQtd > 0;
+
+  // bateu geral = valor E quantidade certos
+  const bateu = valorBateu && qtdBateu;
+  const faltou = valorFaltou || qtdFaltou;
+  const sobrou = valorSobrou || qtdSobrou;
   const corStatus = bateu
     ? COLORS.success
     : faltou
@@ -285,6 +305,7 @@ export default function FormMidia({
               </div>
               <div style={{ fontSize: 11, color: COLORS.muted, marginTop: 3 }}>
                 {totalQtd} {totalQtd === 1 ? "cliente" : "clientes"}
+                {totalDup > 0 ? ` + ${totalDup} dup = ${vendasMidia} vendas` : ""}
               </div>
             </div>
             {temContratado && (
@@ -356,11 +377,9 @@ export default function FormMidia({
                     letterSpacing: 0.3,
                   }}
                 >
-                  {bateu && "OK · VALOR BATEU CERTO"}
-                  {faltou &&
-                    `ATENÇÃO · FALTAM ${fmtBRL(Math.abs(diff))} EM MÍDIA`}
-                  {sobrou &&
-                    `ERRO · MÍDIA EXCEDE O CONTRATADO EM ${fmtBRL(diff)}`}
+                  {bateu && "OK · VALOR E QUANTIDADE BATERAM"}
+                  {!bateu && faltou && "ATENÇÃO · CONFERIR MÍDIA"}
+                  {!bateu && !faltou && sobrou && "ATENÇÃO · MÍDIA A MAIS"}
                 </div>
                 {!bateu && (
                   <div
@@ -368,13 +387,37 @@ export default function FormMidia({
                       fontSize: 10.5,
                       color: COLORS.muted,
                       marginTop: 4,
-                      lineHeight: 1.4,
+                      lineHeight: 1.5,
                     }}
                   >
-                    {faltou &&
-                      "Verifique se todas as vendas têm origem de mídia lançada."}
-                    {sobrou &&
-                      "Possível mídia lançada em duplicidade. Quando o mesmo cliente faz 2 OS, lance só 1 mídia (com o valor total das 2 OS)."}
+                    {!valorBateu && valorFaltou && (
+                      <div>
+                        💰 Valor: faltam {fmtBRL(Math.abs(diff))} sem origem de
+                        mídia.
+                      </div>
+                    )}
+                    {!valorBateu && valorSobrou && (
+                      <div>
+                        💰 Valor: mídia excede o contratado em {fmtBRL(diff)}.
+                      </div>
+                    )}
+                    {!qtdBateu && qtdFaltou && (
+                      <div>
+                        👥 Quantidade: {vendasMidia} venda(s) na mídia (
+                        {totalQtd} clientes + {totalDup} duplicados) x{" "}
+                        {contratadoQtd} no contratado — faltam{" "}
+                        {Math.abs(diffQtd)}. Marque os clientes que fizeram mais
+                        de uma OS no botão "+1 duplicado".
+                      </div>
+                    )}
+                    {!qtdBateu && qtdSobrou && (
+                      <div>
+                        👥 Quantidade: {vendasMidia} venda(s) na mídia (
+                        {totalQtd} clientes + {totalDup} duplicados) x{" "}
+                        {contratadoQtd} no contratado — {diffQtd} a mais.
+                        Confira os duplicados.
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -477,6 +520,67 @@ export default function FormMidia({
                   onChange={(v) => setLinha(o.id, "valor", v)}
                 />
               </div>
+            </div>
+            <div
+              className="flex items-center"
+              style={{ marginTop: 8, gap: 8 }}
+            >
+              <button
+                onClick={() =>
+                  setLinha(o.id, "dup", num(mLinhas[o.id]?.dup) + 1)
+                }
+                style={{
+                  border: `1.5px solid ${COLORS.border}`,
+                  background: num(mLinhas[o.id]?.dup) > 0 ? "#EEF2FF" : "#fff",
+                  color: COLORS.roxo,
+                  borderRadius: 8,
+                  fontSize: 11.5,
+                  fontWeight: 700,
+                  padding: "6px 10px",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 4,
+                }}
+              >
+                +1 duplicado
+              </button>
+              {num(mLinhas[o.id]?.dup) > 0 && (
+                <>
+                  <span
+                    style={{
+                      fontSize: 12,
+                      fontWeight: 700,
+                      color: COLORS.roxo,
+                    }}
+                  >
+                    {num(mLinhas[o.id]?.dup)} dup
+                  </span>
+                  <button
+                    onClick={() => setLinha(o.id, "dup", 0)}
+                    style={{
+                      border: "none",
+                      background: "none",
+                      color: COLORS.muted,
+                      fontSize: 11,
+                      textDecoration: "underline",
+                      cursor: "pointer",
+                      padding: 0,
+                    }}
+                  >
+                    zerar
+                  </button>
+                </>
+              )}
+              <span
+                style={{
+                  fontSize: 10,
+                  color: COLORS.muted,
+                  fontStyle: "italic",
+                }}
+              >
+                cliente que fez 2 OS
+              </span>
             </div>
           </div>
         ))}
