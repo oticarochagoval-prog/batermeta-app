@@ -43,7 +43,29 @@ export function calcMeta(loja, categoria, lancamentos, viewCtx = null) {
     decorridosBrutos = CONFIG.semanaAtual;
   }
   // decorridos NUNCA pode ser maior que divisor (cap fix 27/05/2026)
-  const decorridos = Math.min(decorridosBrutos, divisor);
+  let decorridos = Math.min(decorridosBrutos, divisor);
+
+  // fix6.10: desconta dias marcados como FERIADO dos dias decorridos.
+  // Feriado = lançamento com obs "FERIADO" e nao_teve. O divisor (total
+  // de dias do mês) continua igual — só não cobramos o esperado do dia
+  // que a loja não abriu. Conta só feriados no mês atual e em dias que
+  // já passaram (período <= "hoje" do decorrido), pra não descontar
+  // feriado futuro.
+  if (ehMesAtual && loja.tipoPeriodo === "diario") {
+    const feriados = new Set(
+      lancamentos
+        .filter(
+          (l) =>
+            l.lojaId === loja.id &&
+            String(l.obs || "").toUpperCase() === "FERIADO" &&
+            l.naoTeve
+        )
+        .map((l) => l.periodo)
+    );
+    if (feriados.size > 0) {
+      decorridos = Math.max(0, decorridos - feriados.size);
+    }
+  }
 
   const metaPeriodo = m.meta / divisor;
   const metaAcumulada = metaPeriodo * decorridos;

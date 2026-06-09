@@ -254,7 +254,9 @@ export async function upsertVenda({
     categoria,
     valor: naoTeve ? 0 : valor,
     qtd_vendas: naoTeve ? 0 : qtdVendas,
-    obs: naoTeve ? "" : obs || "",
+    // fix6.10: mesmo no "não teve", preserva a obs — usado pra marcar
+    // FERIADO (dia que não conta como dia útil decorrido).
+    obs: obs || "",
     nao_teve: !!naoTeve,
   };
 

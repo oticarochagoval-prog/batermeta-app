@@ -188,6 +188,50 @@ export default function FormVenda({
     }
   };
 
+  // fix6.10: marca o dia inteiro como FERIADO (contratado + faturado).
+  // Grava como "não teve" com obs="FERIADO" — o cálculo de dias úteis
+  // decorridos ignora dias marcados assim, então o esperado não cobra
+  // esse dia (o divisor de dias do mês continua o mesmo).
+  const marcarFeriado = async () => {
+    if (bloqueado) {
+      setErro(gate.motivo);
+      return;
+    }
+    setErro("");
+    setSalvando(true);
+    try {
+      for (const cat of ["contratado", "faturado"]) {
+        await upsertVenda({
+          lojaId: loja.id,
+          periodo,
+          categoria: cat,
+          valor: 0,
+          qtdVendas: 0,
+          obs: "FERIADO",
+          naoTeve: true,
+          quem: viaMaster ? "master" : "loja",
+        });
+      }
+      setValor(0);
+      setQtdVendas("");
+      setObs("");
+      setOk("feriado");
+      setTimeout(() => setOk(""), 1800);
+      try {
+        setExistente(await buscarLancamento(loja.id, periodo, modo));
+      } catch (_) {
+        /* ignora */
+      }
+      onSaved && onSaved();
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error(e);
+      setErro("Não foi possível marcar feriado. Tente novamente.");
+    } finally {
+      setSalvando(false);
+    }
+  };
+
   return (
     <div
       style={{
@@ -380,6 +424,38 @@ export default function FormVenda({
               <>
                 <Ban size={14} /> Não teve
               </>
+            )}
+          </button>
+          <button
+            onClick={marcarFeriado}
+            disabled={salvando || bloqueado}
+            title="Marca o dia inteiro como feriado (não conta como dia útil)"
+            style={{
+              flex: "0 0 auto",
+              padding: "0 12px",
+              border: `1.5px solid ${
+                ok === "feriado" ? COLORS.success : COLORS.border
+              }`,
+              background: "#fff",
+              color: ok === "feriado" ? COLORS.success : COLORS.muted,
+              borderRadius: 10,
+              fontWeight: 700,
+              fontSize: 11.5,
+              cursor: salvando || bloqueado ? "default" : "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 4,
+              opacity: salvando || bloqueado ? 0.5 : 1,
+              whiteSpace: "nowrap",
+            }}
+          >
+            {ok === "feriado" ? (
+              <>
+                <Check size={13} /> Ok
+              </>
+            ) : (
+              "🏖️ Feriado"
             )}
           </button>
         </div>
