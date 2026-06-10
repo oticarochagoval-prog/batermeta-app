@@ -45,12 +45,10 @@ export function calcMeta(loja, categoria, lancamentos, viewCtx = null) {
   // decorridos NUNCA pode ser maior que divisor (cap fix 27/05/2026)
   let decorridos = Math.min(decorridosBrutos, divisor);
 
-  // fix6.10: desconta dias marcados como FERIADO dos dias decorridos.
-  // Feriado = lançamento com obs "FERIADO" e nao_teve. O divisor (total
-  // de dias do mês) continua igual — só não cobramos o esperado do dia
-  // que a loja não abriu. Conta só feriados no mês atual e em dias que
-  // já passaram (período <= "hoje" do decorrido), pra não descontar
-  // feriado futuro.
+  // fix6.10/6.12: desconta dias marcados como FERIADO dos dias decorridos.
+  // Só conta feriados ATÉ a data do relatório (ateData) — senão um feriado
+  // futuro zerava o esperado de um relatório de dia anterior.
+  const ateDataFer = viewCtx && viewCtx.ateData ? viewCtx.ateData : null;
   if (ehMesAtual && loja.tipoPeriodo === "diario") {
     const feriados = new Set(
       lancamentos
@@ -58,7 +56,8 @@ export function calcMeta(loja, categoria, lancamentos, viewCtx = null) {
           (l) =>
             l.lojaId === loja.id &&
             String(l.obs || "").toUpperCase() === "FERIADO" &&
-            l.naoTeve
+            l.naoTeve &&
+            (!ateDataFer || l.periodo <= ateDataFer)
         )
         .map((l) => l.periodo)
     );
@@ -69,8 +68,16 @@ export function calcMeta(loja, categoria, lancamentos, viewCtx = null) {
 
   const metaPeriodo = m.meta / divisor;
   const metaAcumulada = metaPeriodo * decorridos;
+  // fix6.12: se veio "ateData" no viewCtx (relatório de um dia específico),
+  // o acumulado soma só os lançamentos ATÉ aquela data (inclusive). Sem
+  // isso, o relatório de um dia somava o mês inteiro (inclusive dias
+  // futuros), inflando o acumulado e o crédito.
+  const ateData = viewCtx && viewCtx.ateData ? viewCtx.ateData : null;
   const doMes = lancamentos.filter(
-    (l) => l.lojaId === loja.id && l.categoria === categoria
+    (l) =>
+      l.lojaId === loja.id &&
+      l.categoria === categoria &&
+      (!ateData || l.periodo <= ateData)
   );
   const acumulado = doMes.reduce((s, l) => s + l.valor, 0);
   // "Vendido hoje" só faz sentido pro mês atual; em mês passado, força 0.

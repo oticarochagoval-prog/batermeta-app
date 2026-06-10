@@ -26,7 +26,12 @@ export function montaMsg(loja, lancamentos, midias, orcamentos, periodoAlvo) {
       viewCtx = {
         ehMesAtual: true,
         diasUteisDecorridos: diasUteisAteHoje(ay, am, alvo),
+        ateData: alvo,
       };
+    } else {
+      // mês fechado (passado): acumulado vai até o fim daquele mês,
+      // mas ainda limitamos à data alvo pra coerência do relatório.
+      viewCtx = { ehMesAtual: false, ateData: alvo };
     }
   }
   const c = calcMeta(loja, "contratado", lancamentos, viewCtx);
