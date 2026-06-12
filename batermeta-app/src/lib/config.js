@@ -12,13 +12,17 @@ function hojeISO() {
 }
 
 export function diasUteisAteHoje(ano, mes /* 1-12 */, hojeISOStr) {
-  // Conta dias úteis (segunda a sábado) do dia 1 até "hoje", inclusive.
-  // Domingo fica de fora — mesma regra do protótipo (linhas 84-91).
+  // Conta dias úteis (SEGUNDA A SEXTA) do dia 1 até "hoje", inclusive.
+  // fix6.13: sábado e domingo NÃO contam — alinhado a como o divisor
+  // (total de dias úteis do mês) é configurado pela loja, que também
+  // considera só seg-sex. Antes contava sábado, inflando os dias
+  // decorridos e o débito.
   const hoje = parseISO(hojeISOStr);
   let count = 0;
   for (let d = 1; d <= hoje.getDate(); d++) {
     const dt = new Date(ano, mes - 1, d);
-    if (dt.getDay() !== 0) count++;
+    const dow = dt.getDay();
+    if (dow !== 0 && dow !== 6) count++;
   }
   return count;
 }
