@@ -27,11 +27,20 @@ export default function Relatorios({
   orcamentos,
   origens,
   abordadores = [],
+  mesView,
+  anoView,
 }) {
   const [sub, setSub] = useState("vendas");
 
-  const c = calcMeta(loja, "contratado", lancamentos);
-  const f = calcMeta(loja, "faturado", lancamentos);
+  // Default = mês atual se prop não vier (compatibilidade Master)
+  const mesEfetivo = mesView ?? CONFIG.mes;
+  const anoEfetivo = anoView ?? CONFIG.ano;
+  const ehMesAtual =
+    mesEfetivo === CONFIG.mes && anoEfetivo === CONFIG.ano;
+  const viewCtx = { ehMesAtual };
+
+  const c = calcMeta(loja, "contratado", lancamentos, viewCtx);
+  const f = calcMeta(loja, "faturado", lancamentos, viewCtx);
   const midia = calcMidia(loja, midias, origens);
   const orc = calcOrc(loja, orcamentos);
   const ab = calcAbord(loja, abordadores);
@@ -48,7 +57,7 @@ export default function Relatorios({
       <div style={{ fontSize: 12, color: COLORS.muted, marginBottom: 10 }}>
         Período:{" "}
         <b style={{ color: COLORS.fg }}>
-          {MES[CONFIG.mes - 1]}/{CONFIG.ano}
+          {MES[mesEfetivo - 1]}/{anoEfetivo}
         </b>
       </div>
 

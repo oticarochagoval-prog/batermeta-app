@@ -19,16 +19,25 @@ export default function RelatoriosConsolidados({
   midias,
   orcamentos,
   origens,
+  mesView = CONFIG.mes,
+  anoView = CONFIG.ano,
+  ehMesAtual = true,
+  onMesAnterior,
+  onProxMes,
+  onVoltarAtual,
 }) {
   const [sub, setSub] = useState("vendas");
   const [ordemComp, setOrdemComp] = useState("loja");
   const [copiado, setCopiado] = useState(false);
 
   const lojasAtivas = lojasState.filter((l) => l.ativa !== false);
+  // fix6.14: quando vendo mês passado, o esperado vira meta cheia
+  // (ehMesAtual=false). No mês atual, calcula proporcional aos dias.
+  const viewCtx = { ehMesAtual };
 
   const dadosLoja = lojasAtivas.map((loja) => {
-    const c = calcMeta(loja, "contratado", lancamentos);
-    const f = calcMeta(loja, "faturado", lancamentos);
+    const c = calcMeta(loja, "contratado", lancamentos, viewCtx);
+    const f = calcMeta(loja, "faturado", lancamentos, viewCtx);
     const periodoHoje =
       loja.tipoPeriodo === "diario" ? CONFIG.hoje : `S${CONFIG.semanaAtual}`;
     const status = statusDia(loja, periodoHoje, lancamentos, midias, orcamentos);
@@ -96,7 +105,7 @@ export default function RelatoriosConsolidados({
   });
 
   const montaTexto = () => {
-    const cab = `*BATERMETA — Relatório Consolidado*\n${MES[CONFIG.mes - 1]} / ${CONFIG.ano} · ${lojasAtivas.length} loja(s)\n`;
+    const cab = `*BATERMETA — Relatório Consolidado*\n${MES[mesView - 1]} / ${anoView} · ${lojasAtivas.length} loja(s)\n`;
     if (sub === "vendas") {
       return `${cab}\n*VENDAS DA REDE*\nFaturamento total: ${fmtBRL(totalRede)}\nContratado: ${fmtBRL(totalContratado)}\nFaturado: ${fmtBRL(totalFaturado)}\nMeta da rede: ${fmtBRL(metaRede)}\nTicket médio geral: ${fmtBRL(ticketRede)}\nQtd. vendas: ${qtdRede}\nLojas no crédito: ${lojasNoCredito}/${lojasAtivas.length}\n${diffRede >= 0 ? `Crédito vs esperado: ${fmtBRL(diffRede)}` : `Débito vs esperado: ${fmtBRL(Math.abs(diffRede))}`}`;
     }
@@ -174,10 +183,92 @@ export default function RelatoriosConsolidados({
         ))}
       </div>
 
+      {/* fix6.14: seletor de mês da rede (igual ao da loja) */}
+      <div
+        style={{
+          background: ehMesAtual ? "#fff" : "#FEF3C7",
+          border: `1px solid ${ehMesAtual ? COLORS.border : "#FDE68A"}`,
+          borderRadius: 10,
+          padding: "8px 12px",
+          marginBottom: 10,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+        }}
+      >
+        <button
+          onClick={onMesAnterior}
+          style={{
+            border: "none",
+            background: "none",
+            fontSize: 22,
+            lineHeight: 1,
+            cursor: "pointer",
+            color: ehMesAtual ? COLORS.muted : "#92400E",
+            padding: "0 8px",
+          }}
+        >
+          ‹
+        </button>
+        <div style={{ textAlign: "center" }}>
+          <div
+            style={{
+              fontSize: 9.5,
+              fontWeight: 700,
+              letterSpacing: 0.5,
+              color: ehMesAtual ? COLORS.muted : "#92400E",
+            }}
+          >
+            {ehMesAtual ? "VENDO MÊS ATUAL" : "VENDO MÊS PASSADO"}
+          </div>
+          <div
+            style={{
+              fontSize: 16,
+              fontWeight: 800,
+              fontFamily: "Sora",
+              color: ehMesAtual ? COLORS.fg : "#92400E",
+            }}
+          >
+            {MES[mesView - 1]} / {anoView}
+          </div>
+          {!ehMesAtual && (
+            <button
+              onClick={onVoltarAtual}
+              style={{
+                border: "none",
+                background: "none",
+                color: "#92400E",
+                fontSize: 11,
+                textDecoration: "underline",
+                cursor: "pointer",
+                padding: 0,
+                marginTop: 2,
+              }}
+            >
+              voltar pro mês atual
+            </button>
+          )}
+        </div>
+        <button
+          onClick={onProxMes}
+          style={{
+            border: "none",
+            background: "none",
+            fontSize: 22,
+            lineHeight: 1,
+            cursor: "pointer",
+            color: ehMesAtual ? COLORS.muted : "#92400E",
+            padding: "0 8px",
+          }}
+        >
+          ›
+        </button>
+      </div>
+
       <div style={{ fontSize: 11, color: COLORS.muted, marginBottom: 10 }}>
         Período:{" "}
         <b style={{ color: COLORS.fg }}>
-          {MES[CONFIG.mes - 1]} / {CONFIG.ano}
+          {MES[mesView - 1]} / {anoView}
         </b>
       </div>
 

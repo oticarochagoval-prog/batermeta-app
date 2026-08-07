@@ -39,15 +39,19 @@ export default function MasterApp({ lojasState, recarregarLojas, onSair }) {
   const [origens, setOrigens] = useState([]);
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState("");
+  // fix6.14: seletor de mês na visão consolidada da rede.
+  const [mesView, setMesView] = useState(CONFIG.mes);
+  const [anoView, setAnoView] = useState(CONFIG.ano);
+  const ehMesAtual = mesView === CONFIG.mes && anoView === CONFIG.ano;
 
   const recarregar = useCallback(async () => {
     setErro("");
     try {
       // Sem lojaId, listar* retorna de TODAS as lojas
       const [l, m, o, ori] = await Promise.all([
-        listarLancamentos(null, CONFIG.mes, CONFIG.ano),
-        listarMidias(null, CONFIG.mes, CONFIG.ano),
-        listarOrcamentos(null, CONFIG.mes, CONFIG.ano),
+        listarLancamentos(null, mesView, anoView),
+        listarMidias(null, mesView, anoView),
+        listarOrcamentos(null, mesView, anoView),
         listarOrigens(null),
       ]);
       setLancamentos(l);
@@ -58,7 +62,7 @@ export default function MasterApp({ lojasState, recarregarLojas, onSair }) {
       console.error(e);
       setErro("Não foi possível carregar os dados da rede.");
     }
-  }, []);
+  }, [mesView, anoView]);
 
   useEffect(() => {
     let cancelado = false;
@@ -146,6 +150,33 @@ export default function MasterApp({ lojasState, recarregarLojas, onSair }) {
                 midias={midias}
                 orcamentos={orcamentos}
                 origens={origens}
+                mesView={mesView}
+                anoView={anoView}
+                ehMesAtual={ehMesAtual}
+                onMesAnterior={() => {
+                  let m = mesView - 1;
+                  let a = anoView;
+                  if (m < 1) {
+                    m = 12;
+                    a -= 1;
+                  }
+                  setMesView(m);
+                  setAnoView(a);
+                }}
+                onProxMes={() => {
+                  let m = mesView + 1;
+                  let a = anoView;
+                  if (m > 12) {
+                    m = 1;
+                    a += 1;
+                  }
+                  setMesView(m);
+                  setAnoView(a);
+                }}
+                onVoltarAtual={() => {
+                  setMesView(CONFIG.mes);
+                  setAnoView(CONFIG.ano);
+                }}
               />
             )}
             {tab === "cfg" && (
