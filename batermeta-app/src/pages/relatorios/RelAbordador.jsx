@@ -48,7 +48,7 @@ export default function RelAbordador({ ab }) {
                 letterSpacing: 0.5,
               }}
             >
-              META DE CLIENTES
+              META DE CLIENTES QUE COMPRARAM
             </div>
             <div
               style={{
@@ -121,7 +121,8 @@ export default function RelAbordador({ ab }) {
               fontStyle: "italic",
             }}
           >
-            Clientes PROMOÇÃO não contam pra meta nem pra comissão.
+            Conta só quem COMPROU. Cliente sem compra e PROMOÇÃO não contam
+            na meta nem na comissão.
           </div>
         </Card>
       )}

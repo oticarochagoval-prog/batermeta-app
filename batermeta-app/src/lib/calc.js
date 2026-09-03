@@ -172,7 +172,11 @@ export function calcOrc(loja, orcamentos) {
   return { list, total, compraram, pendentes: total - compraram, taxa };
 }
 
-// calcAbord — totais + meta de clientes (paraMeta = total - promoção).
+// calcAbord — totais + meta de clientes.
+// fix6.16: paraMeta conta SÓ quem COMPROU (e não é promoção). Antes
+// contava todo cliente que apareceu (total - promoção), o que inflava
+// meta e comissão. Agora meta e "Pra comissão" só sobem quando o
+// cliente é marcado como comprado.
 export function calcAbord(loja, abordadores) {
   const list = abordadores
     .filter((a) => a.lojaId === loja.id)
@@ -183,7 +187,7 @@ export function calcAbord(loja, abordadores) {
   const total = list.length;
   const compraram = list.filter((a) => !!a.dataComprou).length;
   const promocao = list.filter((a) => !!a.promocao).length;
-  const paraMeta = total - promocao;
+  const paraMeta = list.filter((a) => !!a.dataComprou && !a.promocao).length;
   const meta = loja.metaAbordador || 0;
   const taxa = total > 0 ? (compraram / total) * 100 : 0;
   const pctMeta = meta > 0 ? Math.min(100, (paraMeta / meta) * 100) : 0;
