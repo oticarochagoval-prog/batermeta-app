@@ -155,6 +155,8 @@ export default function Lancar({
           loja={loja}
           orcamentos={orcamentos}
           onSaved={onSaved}
+          viaMaster={viaMaster}
+          permitirFuturo={viaMaster}
         />
       )}
       {modo === "abordador" && loja.metaAbordador > 0 && (
@@ -162,6 +164,8 @@ export default function Lancar({
           loja={loja}
           abordadores={abordadores}
           onSaved={onSaved}
+          viaMaster={viaMaster}
+          permitirFuturo={viaMaster}
         />
       )}
     </div>

@@ -15,16 +15,28 @@ import {
   toggleClienteOrcamento,
 } from "../../lib/db.js";
 import { inp } from "../../ui/Field.jsx";
+import { DateField, CalendarModal } from "../../ui/Calendar.jsx";
+import { menorDataEditavelGerente } from "../../lib/janela_edicao.js";
 
-export default function FormOrcamento({ loja, orcamentos, onSaved }) {
+export default function FormOrcamento({
+  loja,
+  orcamentos,
+  onSaved,
+  viaMaster = false,
+  permitirFuturo = false,
+}) {
   const cor = CAT_COR.orcamento;
   const [nome, setNome] = useState("");
+  const [data, setData] = useState(CONFIG.hoje);
+  const [compraPicker, setCompraPicker] = useState(null);
   const [filtro, setFiltro] = useState("mes");
   const [erro, setErro] = useState("");
   const [salvando, setSalvando] = useState(false);
 
   const clientesLoja = orcamentos.filter((o) => o.lojaId === loja.id);
   const inicioMes = `${CONFIG.ano}-${pad(CONFIG.mes)}-01`;
+  // Menor data que o gerente pode escolher (respeita a janela de edição).
+  const minGerente = menorDataEditavelGerente();
   const hoje = parseISO(CONFIG.hoje);
   const inicioSemana = (() => {
     const d = new Date(hoje);
@@ -63,7 +75,7 @@ export default function FormOrcamento({ loja, orcamentos, onSaved }) {
       await addClienteOrcamento({
         lojaId: loja.id,
         nome: nome.trim(),
-        dataChegou: CONFIG.hoje,
+        dataChegou: data,
       });
       setNome("");
       onSaved && onSaved();
@@ -76,9 +88,25 @@ export default function FormOrcamento({ loja, orcamentos, onSaved }) {
     }
   };
 
-  const toggleComprou = async (c) => {
+  // Marca "comprou" escolhendo a data no calendário (retroativo permitido).
+  const confirmarCompra = async (iso) => {
+    if (!compraPicker) return;
     try {
-      await toggleClienteOrcamento(c.id, c.dataComprou ? null : CONFIG.hoje);
+      await toggleClienteOrcamento(compraPicker.id, iso);
+      onSaved && onSaved();
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error(e);
+      setErro("Não foi possível atualizar. Tente novamente.");
+    } finally {
+      setCompraPicker(null);
+    }
+  };
+
+  // Desmarca (volta pra pendente).
+  const desmarcarCompra = async (c) => {
+    try {
+      await toggleClienteOrcamento(c.id, null);
       onSaved && onSaved();
     } catch (e) {
       // eslint-disable-next-line no-console
@@ -203,11 +231,18 @@ export default function FormOrcamento({ loja, orcamentos, onSaved }) {
         </div>
 
         {/* Adicionar */}
-        <div className="flex gap-2">
+        <DateField
+          label="Data do orçamento"
+          valueISO={data}
+          onChange={setData}
+          permitirFuturo={permitirFuturo}
+          minISO={viaMaster ? null : minGerente}
+        />
+        <div className="flex gap-2" style={{ marginTop: -4 }}>
           <input
             value={nome}
             onChange={(e) => setNome(e.target.value)}
-            placeholder="Nome do cliente que pediu orçamento hoje"
+            placeholder="Nome do cliente que pediu orçamento"
             style={{ ...inp, flex: 1 }}
             onKeyDown={(e) => e.key === "Enter" && adicionar()}
             disabled={salvando}
@@ -241,8 +276,9 @@ export default function FormOrcamento({ loja, orcamentos, onSaved }) {
             marginTop: -4,
           }}
         >
-          Anota o nome quando o cliente faz um orçamento. Quando ele fechar a
-          compra, toque na bolinha pra marcar.
+          Escolha a data, anota o nome quando o cliente faz um orçamento.
+          Quando ele fechar a compra, toque na bolinha e escolha o dia da
+          compra.
         </div>
 
         {erro && (
@@ -329,7 +365,9 @@ export default function FormOrcamento({ loja, orcamentos, onSaved }) {
                 }}
               >
                 <button
-                  onClick={() => toggleComprou(cli)}
+                  onClick={() =>
+                    comprou ? desmarcarCompra(cli) : setCompraPicker(cli)
+                  }
                   aria-label="marcar comprado"
                   style={{
                     width: 24,
@@ -372,9 +410,12 @@ export default function FormOrcamento({ loja, orcamentos, onSaved }) {
                         {" "}
                         ·{" "}
                         <span
+                          onClick={() => setCompraPicker(cli)}
                           style={{
                             color: COLORS.success,
                             fontWeight: 700,
+                            cursor: "pointer",
+                            textDecoration: "underline",
                           }}
                         >
                           Comprou {fmtCurto(cli.dataComprou)}
@@ -407,6 +448,22 @@ export default function FormOrcamento({ loja, orcamentos, onSaved }) {
           })}
         </div>
       </div>
+
+      {compraPicker && (
+        <CalendarModal
+          valueISO={compraPicker.dataComprou || CONFIG.hoje}
+          onPick={confirmarCompra}
+          onClose={() => setCompraPicker(null)}
+          permitirFuturo={permitirFuturo}
+          minISO={
+            viaMaster
+              ? null
+              : (compraPicker.dataChegou || inicioMes) > minGerente
+              ? compraPicker.dataChegou || inicioMes
+              : minGerente
+          }
+        />
+      )}
     </div>
   );
 }

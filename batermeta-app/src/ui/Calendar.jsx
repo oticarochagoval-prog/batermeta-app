@@ -11,7 +11,7 @@ import { DOW, DOW3, MES, pad, parseISO } from "../lib/format.js";
 import { CONFIG } from "../lib/config.js";
 import { Field, inp } from "./Field.jsx";
 
-export function CalendarModal({ valueISO, onPick, onClose, permitirFuturo = false }) {
+export function CalendarModal({ valueISO, onPick, onClose, permitirFuturo = false, minISO = null }) {
   const base = parseISO(valueISO || CONFIG.hoje);
   const [ano, setAno] = useState(base.getFullYear());
   const [mes, setMes] = useState(base.getMonth()); // 0-11
@@ -120,8 +120,9 @@ export function CalendarModal({ valueISO, onPick, onClose, permitirFuturo = fals
             const iso = `${ano}-${pad(mes + 1)}-${pad(d)}`;
             const futuro = !permitirFuturo && parseISO(iso) > parseISO(hojeISO);
             const domingo = parseISO(iso).getDay() === 0;
+            const antesMin = minISO ? iso < minISO : false;
             const sel = iso === valueISO;
-            const bloq = futuro || domingo;
+            const bloq = futuro || domingo || antesMin;
             return (
               <button
                 key={idx}
@@ -162,7 +163,7 @@ export function CalendarModal({ valueISO, onPick, onClose, permitirFuturo = fals
   );
 }
 
-export function DateField({ label, valueISO, onChange, permitirFuturo = false }) {
+export function DateField({ label, valueISO, onChange, permitirFuturo = false, minISO = null }) {
   const [open, setOpen] = useState(false);
   return (
     <>
@@ -193,6 +194,7 @@ export function DateField({ label, valueISO, onChange, permitirFuturo = false })
           onPick={onChange}
           onClose={() => setOpen(false)}
           permitirFuturo={permitirFuturo}
+          minISO={minISO}
         />
       )}
     </>

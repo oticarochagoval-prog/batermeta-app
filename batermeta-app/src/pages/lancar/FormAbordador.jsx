@@ -16,17 +16,29 @@ import {
   togglePromocaoAbord,
 } from "../../lib/db.js";
 import { inp } from "../../ui/Field.jsx";
+import { DateField, CalendarModal } from "../../ui/Calendar.jsx";
+import { menorDataEditavelGerente } from "../../lib/janela_edicao.js";
 
-export default function FormAbordador({ loja, abordadores, onSaved }) {
+export default function FormAbordador({
+  loja,
+  abordadores,
+  onSaved,
+  viaMaster = false,
+  permitirFuturo = false,
+}) {
   const cor = CAT_COR.abordador;
   const [nome, setNome] = useState("");
   const [promo, setPromo] = useState(false);
+  const [data, setData] = useState(CONFIG.hoje);
+  const [compraPicker, setCompraPicker] = useState(null);
   const [filtro, setFiltro] = useState("mes");
   const [erro, setErro] = useState("");
   const [salvando, setSalvando] = useState(false);
 
   const clientesLoja = abordadores.filter((a) => a.lojaId === loja.id);
   const inicioMes = `${CONFIG.ano}-${pad(CONFIG.mes)}-01`;
+  // Menor data que o gerente pode escolher (respeita a janela de edição).
+  const minGerente = menorDataEditavelGerente();
   const hoje = parseISO(CONFIG.hoje);
   const inicioSemana = (() => {
     const d = new Date(hoje);
@@ -54,7 +66,12 @@ export default function FormAbordador({ loja, abordadores, onSaved }) {
   const promoMes = clientesLoja.filter(
     (a) => a.dataChegou >= inicioMes && a.promocao
   ).length;
-  const paraMeta = totalMes - promoMes;
+  // fix6.15: a meta conta só clientes que COMPRARAM (e não são promoção).
+  // Antes contava todo cliente que aparecia (total - promoção), o que
+  // inflava a meta com quem só passou e não fechou.
+  const paraMeta = clientesLoja.filter(
+    (a) => a.dataChegou >= inicioMes && a.dataComprou && !a.promocao
+  ).length;
   const metaAb = loja.metaAbordador || 0;
   const pctMeta =
     metaAb > 0 ? Math.min(100, (paraMeta / metaAb) * 100) : 0;
@@ -78,7 +95,7 @@ export default function FormAbordador({ loja, abordadores, onSaved }) {
       await addClienteAbord({
         lojaId: loja.id,
         nome: nome.trim(),
-        dataChegou: CONFIG.hoje,
+        dataChegou: data,
         promocao: promo,
       });
       setNome("");
@@ -93,9 +110,25 @@ export default function FormAbordador({ loja, abordadores, onSaved }) {
     }
   };
 
-  const toggleComprou = async (c) => {
+  // Marca "comprou" escolhendo a data no calendário (retroativo permitido).
+  const confirmarCompra = async (iso) => {
+    if (!compraPicker) return;
     try {
-      await toggleClienteAbord(c.id, c.dataComprou ? null : CONFIG.hoje);
+      await toggleClienteAbord(compraPicker.id, iso);
+      onSaved && onSaved();
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error(e);
+      setErro("Não foi possível atualizar.");
+    } finally {
+      setCompraPicker(null);
+    }
+  };
+
+  // Desmarca (volta pra pendente).
+  const desmarcarCompra = async (c) => {
+    try {
+      await toggleClienteAbord(c.id, null);
       onSaved && onSaved();
     } catch (e) {
       // eslint-disable-next-line no-console
@@ -174,7 +207,7 @@ export default function FormAbordador({ loja, abordadores, onSaved }) {
                     letterSpacing: 0.5,
                   }}
                 >
-                  META DE CLIENTES
+                  META DE CLIENTES QUE COMPRARAM
                 </div>
                 <div
                   style={{
@@ -243,7 +276,8 @@ export default function FormAbordador({ loja, abordadores, onSaved }) {
                 fontStyle: "italic",
               }}
             >
-              Clientes PROMOÇÃO não contam na meta.
+              Conta só quem COMPROU. Cliente sem compra e PROMOÇÃO não contam
+              na meta.
             </div>
           </div>
         )}
@@ -351,11 +385,18 @@ export default function FormAbordador({ loja, abordadores, onSaved }) {
 
         {/* Adicionar cliente */}
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <DateField
+            label="Data que apareceu"
+            valueISO={data}
+            onChange={setData}
+            permitirFuturo={permitirFuturo}
+            minISO={viaMaster ? null : minGerente}
+          />
           <div className="flex gap-2">
             <input
               value={nome}
               onChange={(e) => setNome(e.target.value)}
-              placeholder="Nome do cliente que apareceu hoje"
+              placeholder="Nome do cliente que apareceu"
               style={{ ...inp, flex: 1 }}
               onKeyDown={(e) => e.key === "Enter" && adicionar()}
               disabled={salvando}
@@ -417,8 +458,8 @@ export default function FormAbordador({ loja, abordadores, onSaved }) {
             marginTop: -4,
           }}
         >
-          Anota o nome quando o cliente aparece. Quando ele comprar, toque na
-          bolinha pra marcar como comprado.
+          Escolha a data, anota o nome quando o cliente aparece. Quando ele
+          comprar, toque na bolinha e escolha o dia da compra.
         </div>
 
         {erro && (
@@ -505,7 +546,9 @@ export default function FormAbordador({ loja, abordadores, onSaved }) {
                 }}
               >
                 <button
-                  onClick={() => toggleComprou(cli)}
+                  onClick={() =>
+                    comprou ? desmarcarCompra(cli) : setCompraPicker(cli)
+                  }
                   aria-label="marcar comprado"
                   style={{
                     width: 24,
@@ -574,9 +617,12 @@ export default function FormAbordador({ loja, abordadores, onSaved }) {
                         {" "}
                         ·{" "}
                         <span
+                          onClick={() => setCompraPicker(cli)}
                           style={{
                             color: COLORS.success,
                             fontWeight: 700,
+                            cursor: "pointer",
+                            textDecoration: "underline",
                           }}
                         >
                           Comprou {fmtCurto(cli.dataComprou)}
@@ -626,6 +672,22 @@ export default function FormAbordador({ loja, abordadores, onSaved }) {
           })}
         </div>
       </div>
+
+      {compraPicker && (
+        <CalendarModal
+          valueISO={compraPicker.dataComprou || CONFIG.hoje}
+          onPick={confirmarCompra}
+          onClose={() => setCompraPicker(null)}
+          permitirFuturo={permitirFuturo}
+          minISO={
+            viaMaster
+              ? null
+              : (compraPicker.dataChegou || inicioMes) > minGerente
+              ? compraPicker.dataChegou || inicioMes
+              : minGerente
+          }
+        />
+      )}
     </div>
   );
 }

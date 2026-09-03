@@ -11,7 +11,32 @@
 //   - Semanal ('S2'): semana do mês corrente (CONFIG.mes/CONFIG.ano)
 
 import { CONFIG } from "./config.js";
-import { parseISO } from "./format.js";
+import { parseISO, pad } from "./format.js";
+
+// Menor data (ISO) que um gerente pode editar HOJE, seguindo a mesma
+// regra da janela de edição:
+//   - Mês atual é sempre livre.
+//   - Se ainda estamos dentro de `janelaEdicaoDias` após a virada, o
+//     mês recém-fechado também está liberado → menor data = 1º daquele
+//     mês anterior.
+//   - Passado o prazo → menor data = 1º do mês atual.
+// Master não usa isto (edita qualquer data).
+export function menorDataEditavelGerente() {
+  const primeiroMesAtual = `${CONFIG.ano}-${pad(CONFIG.mes)}-01`;
+  const virada = new Date(CONFIG.ano, CONFIG.mes - 1, 1); // 1º do mês atual
+  const hoje = parseISO(CONFIG.hoje);
+  const diasDesdeVirada = Math.floor((hoje - virada) / 86400000);
+  if (diasDesdeVirada <= CONFIG.janelaEdicaoDias) {
+    let mAnt = CONFIG.mes - 1;
+    let aAnt = CONFIG.ano;
+    if (mAnt < 1) {
+      mAnt = 12;
+      aAnt -= 1;
+    }
+    return `${aAnt}-${pad(mAnt)}-01`;
+  }
+  return primeiroMesAtual;
+}
 
 // Retorna { permitido, motivo } para um dado período + tipo de sessão.
 // viaMaster=true → sempre permitido.
